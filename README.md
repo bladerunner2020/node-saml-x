@@ -1,106 +1,15 @@
-Passport-SAML
+Node SAML
 =============
-[![Build Status](https://travis-ci.org/bergie/passport-saml.svg?branch=master)](https://travis-ci.org/bergie/passport-saml) [![GitHub version](https://badge.fury.io/gh/bergie%2Fpassport-saml.svg)](https://badge.fury.io/gh/bergie%2Fpassport-saml) [![npm version](https://badge.fury.io/js/passport-saml.svg)](http://badge.fury.io/js/passport-saml) [![dependencies](https://david-dm.org/bergie/passport-saml.svg)](https://david-dm.org/bergie/passport-saml.svg) [![devDependencies](https://david-dm.org/bergie/passport-saml/dev-status.svg)](https://david-dm.org/bergie/passport-saml/dev-status.svg) [![peerDependencies](https://david-dm.org/bergie/passport-saml/peer-status.svg)](https://david-dm.org/bergie/passport-saml/peer-status.svg)
 
-[![NPM](https://nodei.co/npm/passport-saml.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/passport-saml/)
-
-This is a [SAML 2.0](http://en.wikipedia.org/wiki/SAML_2.0) authentication provider for [Passport](http://passportjs.org/), the Node.js authentication library.
-
-The code was originally based on Michael Bosworth's [express-saml](https://github.com/bozzltron/express-saml) library.
-
-Passport-SAML has been tested to work with Onelogin, Okta, Shibboleth, [SimpleSAMLphp](http://simplesamlphp.org/) based Identity Providers, and with [Active Directory Federation Services](http://en.wikipedia.org/wiki/Active_Directory_Federation_Services).
+This is a [SAML 2.0](http://en.wikipedia.org/wiki/SAML_2.0) library based on the SAML implementation of [passport-saml](https://github.com/bergie/passport-saml).
 
 ## Installation
 
-    $ npm install passport-saml
+    $ npm install node-saml
 
 ## Usage
 
-The examples utilize the [Feide OpenIdp identity provider](https://openidp.feide.no/). You need an account there to log in with this. You also need to [register your site](https://openidp.feide.no/simplesaml/module.php/metaedit/index.php) as a service provider.
-
-### Configure strategy
-
-The SAML identity provider will redirect you to the URL provided by the `path` configuration.
-
-```javascript
-var SamlStrategy = require('passport-saml').Strategy;
-[...]
-
-passport.use(new SamlStrategy(
-  {
-    path: '/login/callback',
-    entryPoint: 'https://openidp.feide.no/simplesaml/saml2/idp/SSOService.php',
-    issuer: 'passport-saml'
-  },
-  function(profile, done) {
-    findByEmail(profile.email, function(err, user) {
-      if (err) {
-        return done(err);
-      }
-      return done(null, user);
-    });
-  })
-);
-```
-
-### Configure strategy for multiple providers
-
-You can pass a `getSamlOptions` parameter to `MultiSamlStrategy` which will be called before the SAML flows. Passport-SAML will pass in the request object so you can decide which configuation is appropriate.
-
-```javascript
-var MultiSamlStrategy = require('passport-saml/multiSamlStrategy');
-[...]
-
-passport.use(new MultiSamlStrategy(
-  {
-    passReqToCallback: true, //makes req available in callback
-    getSamlOptions: function(request, done) {
-      findProvider(request, function(err, provider) {
-        if (err) {
-          return done(err);
-        }
-        return done(null, provider.configuration);
-      });
-    }
-  },
-  function(req, profile, done) {
-    findByEmail(profile.email, function(err, user) {
-      if (err) {
-        return done(err);
-      }
-      return done(null, user);
-    });
-  })
-);
-```
-The options passed when the `MultiSamlStrategy` is initialized are also passed as default values to each provider.
-e.g. If you provide an `issuer` on `MultiSamlStrategy`, this will be also a default value for every provider.
-You can override these defaults by passing a new value through the `getSamlOptions` function.
-
-Using multiple providers supports `validateInResponseTo`, but all the `InResponse` values are stored on the same Cache. This means, if you're using the default `InMemoryCache`, that all providers have access to it and a provider might get its response validated against another's request. [Issue Report](!https://github.com/bergie/passport-saml/issues/334). To amend this you should provide a different cache provider per SAML provider, through the `getSamlOptions` function.
-
-#### The profile object:
-
-The profile object referenced above contains the following:
-
-```typescript
-type Profile = {
-  issuer?: string;
-  sessionIndex?: string;
-  nameID?: string;
-  nameIDFormat?: string;
-  nameQualifier?: string;
-  spNameQualifier?: string;
-  mail?: string;  // InCommon Attribute urn:oid:0.9.2342.19200300.100.1.3
-  email?: string;  // `mail` if not present in the assertion
-  getAssertionXml(): string;  // get the raw assertion XML
-  getAssertion(): object;  // get the assertion XML parsed as a JavaScript object
-  getSamlResponseXml(): string; // get the raw SAML response XML
-  ID?: string;
-} & {
-  [attributeName: string]: unknown;  // arbitrary `AttributeValue`s
-}
-```
+TBD
 
 #### Config parameter details:
 
@@ -150,48 +59,6 @@ type Profile = {
   * `logoutCallbackUrl`: The value with which to populate the `Location` attribute in the `SingleLogoutService` elements in the generated service provider metadata.
 
 
-### Provide the authentication callback
-
-You need to provide a route corresponding to the `path` configuration parameter given to the strategy:
-
-The authentication callback must be invoked after the `body-parser` middlerware.
-
-```javascript
-const bodyParser = require('body-parser');
-
-app.post('/login/callback',
-  bodyParser.urlencoded({ extended: false }),
-  passport.authenticate('saml', { failureRedirect: '/', failureFlash: true }),
-  function(req, res) {
-    res.redirect('/');
-  }
-);
-```
-
-### Authenticate requests
-
-Use `passport.authenticate()`, specifying `saml` as the strategy:
-
-```javascript
-app.get('/login',
-  passport.authenticate('saml', { failureRedirect: '/', failureFlash: true }),
-  function(req, res) {
-    res.redirect('/');
-  }
-);
-```
-
-...or, if you wish to add or override query string parameters:
-
-```javascript
-app.get('/login',
-  passport.authenticate('saml', { additionalParams: { 'username': 'user@domain.com' }}),
-  function(req, res) {
-    res.redirect('/');
-  }
-);
-```
-
 ### generateServiceProviderMetadata( decryptionCert, signingCert )
 
 
@@ -208,7 +75,7 @@ The `generateServiceProviderMetadata` method is also available on the `MultiSaml
 
 Passport-SAML uses the HTTP Redirect Binding for its `AuthnRequest`s (unless overridden with the `authnRequestBinding` parameter), and expects to receive the messages back via the HTTP POST binding.
 
-Authentication requests sent by Passport-SAML can be signed using RSA signature with SHA1, SHA256 or SHA512 hashing algorithms. 
+Authentication requests sent by Passport-SAML can be signed using RSA signature with SHA1, SHA256 or SHA512 hashing algorithms.
 
 To select hashing algorithm, use:
 
@@ -366,10 +233,6 @@ Passport-SAML has built in support for SLO including
 See [Releases](https://github.com/bergie/passport-saml/releases) to find the changes that go into each release.
 
 ## FAQ
-
-### Is there an example I can look at?
-
-Gerard Braad has provided an example app at https://github.com/gbraad/passport-saml-example/
 
 ## Node Support Policy
 

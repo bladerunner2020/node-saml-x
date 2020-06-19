@@ -1,5 +1,5 @@
 {
-  "name": "passport-saml-next",
+  "name": "node-saml",
   "version": "2.2.0",
   "license": "MIT",
   "keywords": [
@@ -8,27 +8,27 @@
     "sso",
     "shibboleth"
   ],
-  "description": "SAML 2.0 authentication strategy for Passport (temporary fork, which includes latest features)",
+  "description": "SAML 2.0 Library",
   "author": {
-    "name": "Henri Bergius",
-    "email": "henri.bergius@iki.fi",
-    "url": "http://bergie.iki.fi"
+    "name": "Andreas Zoellner",
+    "email": "npmjs@andreaszoellner.de",
+    "url": "https://github.com/zoellner"
   },
   "contributors": [
     "Michael Bosworth",
     "Herbert Vojčík",
     "Peter Loer",
     "Mark Stosberg",
-    "Chris Barth"
+    "Chris Barth",
+    "Andreas Zoellner"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/bergie/passport-saml.git"
+    "url": "https://github.com/zoellner/node-saml.git"
   },
-  "main": "./lib/passport-saml",
+  "main": "./src/index.js",
   "dependencies": {
     "debug": "^3.1.0",
-    "passport-strategy": "*",
     "xml-crypto": "^1.4.0",
     "xml-encryption": "^1.0.0",
     "xml2js": "0.4.x",
@@ -36,39 +36,18 @@
     "xmldom": "0.1.x"
   },
   "devDependencies": {
-    "body-parser": "^1.17.1",
     "eslint": "^6.5.1",
-    "express": "^4.16.2",
+    "eslint-plugin-mocha": "^7.0.1",
     "mocha": "^6.0.2",
-    "passport": "0.4.x",
-    "request": "^2.83.0",
     "should": "*",
     "sinon": "^7.2.7"
   },
   "engines": {
-    "node": ">= 8"
+    "node": ">= 10"
   },
   "scripts": {
     "test": "npm run lint && mocha",
-    "lint": "./node_modules/.bin/eslint lib",
-    "lint:fix": "./node_modules/.bin/eslint --fix lib"
-  },
-  "eslintConfig": {
-    "env": {
-      "node": true,
-      "es6": false
-    },
-    "extends": "eslint:recommended",
-    "parserOptions": {
-      "ecmaVersion": 8
-    },
-    "rules": {
-      "no-undefined": "off",
-      "no-unused-vars": "off",
-      "semi": [
-        "error",
-        "always"
-      ]
-    }
+    "lint": "npx eslint .",
+    "lint:fix": "npx eslint --fix ."
   }
 }

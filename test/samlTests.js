@@ -3,7 +3,7 @@ var fs = require('fs');
 var url = require('url');
 var should = require('should');
 
-var SAML = require('../lib/passport-saml/saml.js').SAML;
+var SAML = require('../src/saml.js').SAML;
 
 describe('SAML.js', function () {
   describe('get Urls', function () {

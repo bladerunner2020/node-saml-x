@@ -14,8 +14,6 @@ const algorithms = require('./algorithms');
 const {signAuthnRequestPost} = require('./saml-post-signing');
 const {promisify} = require('util');
 
-/* global Promise */
-
 class SAML {
   constructor(options) {
     this.options = this.initialize(options);
