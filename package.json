@@ -1,6 +1,6 @@
 {
-  "name": "passport-saml",
-  "version": "1.2.0",
+  "name": "passport-saml-next",
+  "version": "2.2.0",
   "license": "MIT",
   "keywords": [
     "saml",
@@ -8,7 +8,7 @@
     "sso",
     "shibboleth"
   ],
-  "description": "SAML 2.0 authentication strategy for Passport",
+  "description": "SAML 2.0 authentication strategy for Passport (temporary fork, which includes latest features)",
   "author": {
     "name": "Henri Bergius",
     "email": "henri.bergius@iki.fi",
@@ -29,7 +29,6 @@
   "dependencies": {
     "debug": "^3.1.0",
     "passport-strategy": "*",
-    "q": "^1.5.0",
     "xml-crypto": "^1.4.0",
     "xml-encryption": "^1.0.0",
     "xml2js": "0.4.x",
@@ -61,7 +60,7 @@
     },
     "extends": "eslint:recommended",
     "parserOptions": {
-      "ecmaVersion": 6
+      "ecmaVersion": 8
     },
     "rules": {
       "no-undefined": "off",
