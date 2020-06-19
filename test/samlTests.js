@@ -234,32 +234,32 @@ describe('SAML.js', function () {
       });
     });
 
-    describe('keyToPEM', function () {
+    describe('_keyToPEM', function () {
       var [regular, singleline] = [
         'acme_tools_com.key',
         'singleline_acme_tools_com.key'
       ].map(keyFromFile);
 
       it('formats singleline keys properly', function (done) {
-        var result = saml.keyToPEM(singleline);
+        var result = saml._keyToPEM(singleline);
         result.should.equal(regular);
         done();
       });
 
       it('passes all other multiline keys', function (done) {
-        var result = saml.keyToPEM(regular);
+        var result = saml._keyToPEM(regular);
         result.should.equal(regular);
         done();
       });
 
       it('does nothing to falsy', function (done) {
-        var result = saml.keyToPEM(null);
+        var result = saml._keyToPEM(null);
         should.equal(result, null);
         done();
       });
 
       it('does nothing to non strings', function (done) {
-        var result = saml.keyToPEM(1);
+        var result = saml._keyToPEM(1);
         should.equal(result, 1);
         done();
       });
