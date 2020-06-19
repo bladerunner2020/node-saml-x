@@ -35,7 +35,7 @@ hash.update(saml_message, 'utf8');
 const digest_b64 = hash.digest('base64');
 
 console.log(JSON.stringify({
-	signature: signature_b64,
-	digest: digest_b64,
-	verified: verified,
+  signature: signature_b64,
+  digest: digest_b64,
+  verified: verified,
 }, null, 2));
