@@ -181,7 +181,7 @@ class SAML {
       if (!Object.prototype.hasOwnProperty.call(doc, 'documentElement'))
         throw new Error('SAMLResponse is not valid base64-encoded XML');
 
-      inResponseTo = xpath(doc, "/*[local-name()='Response']/@InResponseTo");
+      inResponseTo = xpath(doc, '/*[local-name()=\'Response\']/@InResponseTo');
 
       if (inResponseTo) {
         inResponseTo = inResponseTo.length ? inResponseTo[0].nodeValue : null;
@@ -197,9 +197,9 @@ class SAML {
           validSignature = true;
         }
 
-        const assertions = xpath(doc, "/*[local-name()='Response']/*[local-name()='Assertion']");
+        const assertions = xpath(doc, '/*[local-name()=\'Response\']/*[local-name()=\'Assertion\']');
         const encryptedAssertions = xpath(doc,
-          "/*[local-name()='Response']/*[local-name()='EncryptedAssertion']");
+          '/*[local-name()=\'Response\']/*[local-name()=\'EncryptedAssertion\']');
 
         if (assertions.length + encryptedAssertions.length > 1) {
           // There's no reason I know of that we want to handle multiple assertions, and it seems like a
@@ -226,7 +226,7 @@ class SAML {
           const decryptFn = promisify(xmlenc.decrypt).bind(xmlenc);
           const decryptedXml = await decryptFn(encryptedAssertionXml, xmlencOptions);
           const decryptedDoc = new xmldom.DOMParser().parseFromString(decryptedXml);
-          const decryptedAssertions = xpath(decryptedDoc, "/*[local-name()='Assertion']");
+          const decryptedAssertions = xpath(decryptedDoc, '/*[local-name()=\'Assertion\']');
           if (decryptedAssertions.length != 1)
             throw new Error('Invalid EncryptedAssertion content');
 
@@ -256,9 +256,9 @@ class SAML {
             const status = response.Status;
             if (status) {
               const statusCode = status[0].StatusCode;
-              if (statusCode && statusCode[0].$.Value === "urn:oasis:names:tc:SAML:2.0:status:Responder") {
+              if (statusCode && statusCode[0].$.Value === 'urn:oasis:names:tc:SAML:2.0:status:Responder') {
                 const nestedStatusCode = statusCode[0].StatusCode;
-                if (nestedStatusCode && nestedStatusCode[0].$.Value === "urn:oasis:names:tc:SAML:2.0:status:NoPassive") {
+                if (nestedStatusCode && nestedStatusCode[0].$.Value === 'urn:oasis:names:tc:SAML:2.0:status:NoPassive') {
                   if (this.options.cert && !validSignature) {
                     throw new Error('Invalid signature: NoPassive');
                   }
@@ -317,7 +317,7 @@ class SAML {
   validateRedirect(container, originalQuery, callback) {
     const samlMessageType = container.SAMLRequest ? 'SAMLRequest' : 'SAMLResponse';
 
-    const data = Buffer.from(container[samlMessageType], "base64");
+    const data = Buffer.from(container[samlMessageType], 'base64');
     zlib.inflateRaw(data, (err, inflated) => {
       if (err) {
         return callback(err);
@@ -387,14 +387,14 @@ class SAML {
     if (this.options.decryptionPvk) {
       if (!decryptionCert) {
         throw new Error(
-          "Missing decryptionCert while generating metadata for decrypting service provider");
+          'Missing decryptionCert while generating metadata for decrypting service provider');
       }
     }
 
     if (this.options.privateCert) {
       if (!signingCert) {
         throw new Error(
-          "Missing signingCert while generating metadata for signing service provider messages");
+          'Missing signingCert while generating metadata for signing service provider messages');
       }
     }
 
@@ -738,10 +738,10 @@ class SAML {
     });
 
     let optionsAdditionalParamsForThisOperation = {};
-    if (operation == "authorize") {
+    if (operation == 'authorize') {
       optionsAdditionalParamsForThisOperation = this.options.additionalAuthorizeParams || {};
     }
-    if (operation == "logout") {
+    if (operation == 'logout') {
       optionsAdditionalParamsForThisOperation = this.options.additionalLogoutParams || {};
     }
 
@@ -792,8 +792,8 @@ class SAML {
   // See https://github.com/bergie/passport-saml/issues/19 for references to some of the attack
   //   vectors against SAML signature verification.
   _validateSignature(fullXml, currentNode, certs) {
-    const xpathSigQuery = ".//*[local-name(.)='Signature' and " +
-      "namespace-uri(.)='http://www.w3.org/2000/09/xmldsig#']";
+    const xpathSigQuery = './/*[local-name(.)=\'Signature\' and ' +
+      'namespace-uri(.)=\'http://www.w3.org/2000/09/xmldsig#\']';
     const signatures = xpath(currentNode, xpathSigQuery);
     // This function is expecting to validate exactly one signature, so if we find more or fewer
     //   than that, reject.
@@ -809,7 +809,7 @@ class SAML {
   _validateSignatureForCert(signature, cert, fullXml, currentNode) {
     const sig = new xmlCrypto.SignedXml();
     sig.keyInfoProvider = {
-      getKeyInfo: key => "<X509Data></X509Data>",
+      getKeyInfo: key => '<X509Data></X509Data>',
       getKey: keyInfo => this._certToPEM(cert),
     };
     sig.loadSignature(signature);
@@ -919,7 +919,7 @@ class SAML {
   _verifyLogoutResponse({ LogoutResponse }) {
     return (async () => {
       const statusCode = LogoutResponse.Status[0].StatusCode[0].$.Value;
-      if (statusCode !== "urn:oasis:names:tc:SAML:2.0:status:Success")
+      if (statusCode !== 'urn:oasis:names:tc:SAML:2.0:status:Success')
         throw `Bad status code: ${statusCode}`;
 
       this._verifyIssuer(LogoutResponse);
@@ -1155,9 +1155,9 @@ class SAML {
   }
 
   _getNameID({ options }, doc, callback) {
-    const nameIds = xpath(doc, "/*[local-name()='LogoutRequest']/*[local-name()='NameID']");
+    const nameIds = xpath(doc, '/*[local-name()=\'LogoutRequest\']/*[local-name()=\'NameID\']');
     const encryptedIds = xpath(doc,
-      "/*[local-name()='LogoutRequest']/*[local-name()='EncryptedID']");
+      '/*[local-name()=\'LogoutRequest\']/*[local-name()=\'EncryptedID\']');
 
     if (nameIds.length + encryptedIds.length > 1) {
       return callback(new Error('Invalid LogoutRequest'));
@@ -1170,7 +1170,7 @@ class SAML {
         return callback(new Error('No decryption key for encrypted SAML response'));
       }
 
-      const encryptedDatas = xpath(encryptedIds[0], "./*[local-name()='EncryptedData']");
+      const encryptedDatas = xpath(encryptedIds[0], './*[local-name()=\'EncryptedData\']');
 
       if (encryptedDatas.length !== 1) {
         return callback(new Error('Invalid LogoutRequest'));
@@ -1182,7 +1182,7 @@ class SAML {
       return decryptFn(encryptedDataXml, xmlencOptions)
         .then(decryptedXml => {
           const decryptedDoc = new xmldom.DOMParser().parseFromString(decryptedXml);
-          const decryptedIds = xpath(decryptedDoc, "/*[local-name()='NameID']");
+          const decryptedIds = xpath(decryptedDoc, '/*[local-name()=\'NameID\']');
           if (decryptedIds.length !== 1) {
             return callback(new Error('Invalid EncryptedAssertion content'));
           }
@@ -1222,7 +1222,7 @@ function processValidlySignedSamlLogout(self, doc, dom, callback) {
 }
 
 function callBackWithNameID(nameid, callback) {
-  const format = xpath(nameid, "@Format");
+  const format = xpath(nameid, '@Format');
   return callback(null, {
     value: nameid.textContent,
     format: format && format[0] && format[0].nodeValue

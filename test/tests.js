@@ -19,7 +19,7 @@ describe( 'node-saml /', function() {
     });
 
     it( '_generateUniqueID should generate 20 char IDs', function() {
-      var samlObj = new SAML( { entryPoint: "foo" } );
+      var samlObj = new SAML( { entryPoint: 'foo' } );
       for(var i = 0; i < 200; i++){
         samlObj._generateUniqueID().length.should.eql(20);
       }
@@ -41,7 +41,7 @@ describe( 'node-saml /', function() {
         'saml:NameID': [ { _: 'bar', '$': { Format: 'foo' } } ] }
       };
 
-      var samlObj = new SAML( { entryPoint: "foo" } );
+      var samlObj = new SAML( { entryPoint: 'foo' } );
       var logoutRequestPromise = samlObj._generateLogoutRequest({
         user: {
           nameIDFormat: 'foo',
@@ -52,8 +52,8 @@ describe( 'node-saml /', function() {
       logoutRequestPromise.then(function(logoutRequest) {
         parseString( logoutRequest, function( err, doc ) {
           try {
-            delete doc['samlp:LogoutRequest']['$']["ID"];
-            delete doc['samlp:LogoutRequest']['$']["IssueInstant"];
+            delete doc['samlp:LogoutRequest']['$']['ID'];
+            delete doc['samlp:LogoutRequest']['$']['IssueInstant'];
             doc.should.eql( expectedRequest );
             done();
           } catch (err2) {
@@ -81,7 +81,7 @@ describe( 'node-saml /', function() {
         NameQualifier: 'Identity Provider' } } ] }
       };
 
-      var samlObj = new SAML( { entryPoint: "foo" } );
+      var samlObj = new SAML( { entryPoint: 'foo' } );
       var logoutRequestPromise = samlObj._generateLogoutRequest({
         user: {
           nameIDFormat: 'foo',
@@ -94,8 +94,8 @@ describe( 'node-saml /', function() {
       logoutRequestPromise.then(function(logoutRequest) {
         parseString( logoutRequest, function( err, doc ) {
           try {
-            delete doc['samlp:LogoutRequest']['$']["ID"];
-            delete doc['samlp:LogoutRequest']['$']["IssueInstant"];
+            delete doc['samlp:LogoutRequest']['$']['ID'];
+            delete doc['samlp:LogoutRequest']['$']['IssueInstant'];
             doc.should.eql( expectedRequest );
             done();
           } catch (err2) {
@@ -120,12 +120,12 @@ describe( 'node-saml /', function() {
         'samlp:Status': [ { 'samlp:StatusCode': [ { '$': { Value: 'urn:oasis:names:tc:SAML:2.0:status:Success' } } ] } ] }
       };
 
-      var samlObj = new SAML( { entryPoint: "foo" } );
-      var logoutRequest = samlObj._generateLogoutResponse({}, { ID: "quux" });
+      var samlObj = new SAML( { entryPoint: 'foo' } );
+      var logoutRequest = samlObj._generateLogoutResponse({}, { ID: 'quux' });
       parseString( logoutRequest, function( err, doc ) {
         try {
-          delete doc['samlp:LogoutResponse']['$']["ID"];
-          delete doc['samlp:LogoutResponse']['$']["IssueInstant"];
+          delete doc['samlp:LogoutResponse']['$']['ID'];
+          delete doc['samlp:LogoutResponse']['$']['IssueInstant'];
           doc.should.eql( expectedResponse );
           done();
         } catch (err2) {
@@ -153,7 +153,7 @@ describe( 'node-saml /', function() {
         '$': { 'xmlns:saml2p': 'urn:oasis:names:tc:SAML:2.0:protocol' } } ] }
       };
 
-      var samlObj = new SAML( { entryPoint: "foo" } );
+      var samlObj = new SAML( { entryPoint: 'foo' } );
       var logoutRequestPromise = samlObj._generateLogoutRequest({
         user: {
           nameIDFormat: 'foo',
@@ -165,8 +165,8 @@ describe( 'node-saml /', function() {
       logoutRequestPromise.then(function(logoutRequest) {
         parseString( logoutRequest, function( err, doc ) {
           try {
-            delete doc['samlp:LogoutRequest']['$']["ID"];
-            delete doc['samlp:LogoutRequest']['$']["IssueInstant"];
+            delete doc['samlp:LogoutRequest']['$']['ID'];
+            delete doc['samlp:LogoutRequest']['$']['IssueInstant'];
             doc.should.eql( expectedRequest );
             done();
           } catch (err2) {
@@ -177,7 +177,7 @@ describe( 'node-saml /', function() {
     });
 
     it( '_generateLogoutRequest saves id and instant to cache', function( done ) {
-      var samlObj = new SAML( { entryPoint: "foo" } );
+      var samlObj = new SAML( { entryPoint: 'foo' } );
       var cacheSaveSpy = sinon.spy(samlObj.cacheProvider, 'save');
       var logoutRequestPromise = samlObj._generateLogoutRequest({
         user: {
@@ -190,8 +190,8 @@ describe( 'node-saml /', function() {
       logoutRequestPromise.then(function(logoutRequest) {
         parseString( logoutRequest, function( err, doc ) {
           try {
-            var id = doc['samlp:LogoutRequest']['$']["ID"];
-            var issueInstant = doc['samlp:LogoutRequest']['$']["IssueInstant"];
+            var id = doc['samlp:LogoutRequest']['$']['ID'];
+            var issueInstant = doc['samlp:LogoutRequest']['$']['IssueInstant'];
 
             id.should.be.an.instanceOf(String);
             issueInstant.should.be.an.instanceOf(String);
@@ -315,10 +315,10 @@ describe( 'node-saml /', function() {
       }
     });
 
-    describe("validatePostResponse checks /", function() {
+    describe('validatePostResponse checks /', function() {
       it('response with junk content should explain the XML or base64 is not valid', function(done) {
         var samlObj = new SAML( { cert: TEST_CERT });
-        samlObj.validatePostResponse({SAMLResponse: "BOOM"} , function( err, profile, logout ) {
+        samlObj.validatePostResponse({SAMLResponse: 'BOOM'} , function( err, profile, logout ) {
           try {
             should.exist( err );
             err.message.should.match( /SAMLResponse is not valid base64-encoded XML/ );
@@ -378,11 +378,11 @@ describe( 'node-saml /', function() {
         samlObj.validatePostResponse(container, function(err, profile) {
           try {
             should.not.exist(err);
-            profile.issuer.should.eql("https://evil-corp.com");
-            profile.nameID.should.eql("vincent.vega@evil-corp.com");
-            should(profile).have.property("evil-corp.egroupid").eql("vincent.vega@evil-corp.com");
+            profile.issuer.should.eql('https://evil-corp.com');
+            profile.nameID.should.eql('vincent.vega@evil-corp.com');
+            should(profile).have.property('evil-corp.egroupid').eql('vincent.vega@evil-corp.com');
             // attributes without attributeValue child should be ignored
-            should(profile).not.have.property("evilcorp.roles");
+            should(profile).not.have.property('evilcorp.roles');
 
             fakeClock.restore();
 
@@ -413,14 +413,14 @@ describe( 'node-saml /', function() {
         samlObj.validatePostResponse( container, function( err, profile, logout ) {
           try {
             should.exist(err);
-            err.message.should.match("Invalid signature");
+            err.message.should.match('Invalid signature');
           } catch (err2) {
             done(err2);
           }
           samlObj.validatePostResponse( container, function( err, profile, logout ) {
             try {
               should.exist(err);
-              err.message.should.match("InResponseTo is not valid");
+              err.message.should.match('InResponseTo is not valid');
               done();
             } catch (err2) {
               done(err2);
@@ -750,7 +750,7 @@ describe( 'node-saml /', function() {
         var samlObj = new SAML( samlConfig );
 
         ['logout', 'authorize'].forEach( function( operation ) {
-          var additionalParams = samlObj._getAdditionalParams({query:{RelayState: "test"}}, operation);
+          var additionalParams = samlObj._getAdditionalParams({query:{RelayState: 'test'}}, operation);
 
           Object.keys(additionalParams).should.have.length(1);
           additionalParams.should.containEql({'RelayState': 'test'});
@@ -764,7 +764,7 @@ describe( 'node-saml /', function() {
         var samlObj = new SAML( samlConfig );
 
         ['logout', 'authorize'].forEach( function( operation ) {
-          var additionalParams = samlObj._getAdditionalParams({body:{RelayState: "test"}}, operation);
+          var additionalParams = samlObj._getAdditionalParams({body:{RelayState: 'test'}}, operation);
 
           Object.keys(additionalParams).should.have.length(1);
           additionalParams.should.containEql({'RelayState': 'test'});
@@ -1463,7 +1463,7 @@ describe( 'node-saml /', function() {
 
     it('errors if bad xml', function(done) {
       var body = {
-        SAMLRequest: "asdf"
+        SAMLRequest: 'asdf'
       };
       samlObj.validatePostRequest(body, function(err) {
         try {
@@ -1553,33 +1553,33 @@ describe( 'node-saml /', function() {
     });
     it('errors if bad privateCert to _requestToURL', function(done){
       var samlObj = new SAML({
-        entryPoint: "foo",
-        privateCert: "-----BEGIN CERTIFICATE-----\n"+
-          "8mvhvrcCOiJ3mjgKNN1F31jOBJuZNmq0U7n9v+Z+3NfyU/0E9jkrnFvm5ks+p8kl\n" +
-          "BjuBk9RAkazsU9l02XMS/VxOOIifxKC7R9bDtx0hjolYxgqxPIO5s4rmjj0rLzvo\n" +
-          "vQTTTx/tB5e+hbdx922QSeTjP4DO4ms6cIexcH+ZEUOJ3wXiHToJW83SXLRtwPI9\n" +
-          "JbWKeS9nWPnzcedbDNZkGtohW5vf32BHuvLsWcl6eFXRSkdX/7+rgpXmDRB7caQ+\n" +
-          "2SXVY7ORily7LTKg1cFmuKHDzKTGFIp5/GU6dwIDAQABAoIBAArgFQ+Uk4UN4diY\n" +
-          "gJWCAaQlTVmP0UEHZQt/NmJrc9ZVduuhOP0hH6gF53nREHz5UQb4nXB2Ksa3MtYD\n" +
-          "Z1vhJcu/T7pvmib4q+Ij6oAmlyeL/xwVY3IUURMxX3tCdPItlk4PEFELKeqQOiIS\n" +
-          "7B0DYxWfJbMle3c95w5ruYEr2A+fHCKVSlDpg7uPd9VQ6t7bGMZZvc9tDSC1qPXQ\n" +
-          "Gd/WOMXxi+t/TpyVZ6tOcEekQzAMLmWElUUPx3TJ0ur0Zl2LZ7IvQEXXias4lUHV\n" +
-          "fnH3akDCMmdhlJSVqUfplrh85zAOh6fLloZagphj/Kpgfw1TZ+njSDYqSLYE0NZ1\n" +
-          "j+83feECgYEA2aNGgbc+t6QLrJJ63l9Mz541lVV3IUAxZ5ACqOnMkQVuLoa5IMwM\n" +
-          "oENIo38ptfHQqjQ9x8/tEINFqOHnQuOJ/+1xP9f0Me+0clRDCqjGYqNYgmakKyD7\n" +
-          "vey/q6kwHk679RVGiI1p+HdoA+CbEKWHJiRxE0RhAA3G3wGAq7kpJocCgYEAxp4/\n" +
-          "tCft+eHVRivspfDN//axc2TR6qWP9E1ueGvbiXPXv0Puag0W9cER/df/s5jW4Rqg\n" +
-          "CE8649HPUZ0FJT+YaeKgu2Sw9SMcGl4/uyHzg7KnXIeYyQZJPqQkKyXmIix8cw3+\n" +
-          "HBGRtwX5nOy0DgFdaMiH0F08peNI9QHKKTBoWJECgYEAyymJ1ekzWMaAR1Zt8EvS\n" +
-          "LjWoG4EuthFwjRZ4BSpLVk1Vb4VAKAeS+cAVfNpmG3xip6Ag0/ebe0CvtFk9QsmZ\n" +
-          "txj2EP0M7div/9H8y2SF3OpS41fhhIlDtyXcPuivDHu/Jaf4sdwgwlrk9EmlN0Lu\n" +
-          "CIMYMz4vtpclwGNss+EjMt0CgYEAqepD0Vm/iuCaVhfJsgSaFvnywSdlNfpBdtyv\n" +
-          "PzH2dFa4IZZ55hwgoklznNgmlnyQh68BbVpqpO+fDtDnz//h4ePRYb84a96Hcj9j\n" +
-          "AjJ/YxF5f/04xfEsw/wkPQ2FHYM1TDCSTWzyXcMs0gTl3H1qbfPvzF+XPMt+ZKwN\n" +
-          "SMNy4SECgYB3ig6t+XVfNkw8oBOh0Gx37XKbmImXsA8ucDAX9KUbMIvD03XCEf34\n" +
-          "jF3SNJh0SmHoT62vc+cJqPxMDP6E7Q1nZxsEyaAkKr2H4dSM4SlRm0VB+bS+jXsz\n" +
-          "PCiRGSm8eupuxfix05LMMreo4mC7e3Ir4JhdCsXxAMZIvbNyXcvUMA==\n" +
-          "-----END CERTIFICATE-----\n"
+        entryPoint: 'foo',
+        privateCert: '-----BEGIN CERTIFICATE-----\n'+
+          '8mvhvrcCOiJ3mjgKNN1F31jOBJuZNmq0U7n9v+Z+3NfyU/0E9jkrnFvm5ks+p8kl\n' +
+          'BjuBk9RAkazsU9l02XMS/VxOOIifxKC7R9bDtx0hjolYxgqxPIO5s4rmjj0rLzvo\n' +
+          'vQTTTx/tB5e+hbdx922QSeTjP4DO4ms6cIexcH+ZEUOJ3wXiHToJW83SXLRtwPI9\n' +
+          'JbWKeS9nWPnzcedbDNZkGtohW5vf32BHuvLsWcl6eFXRSkdX/7+rgpXmDRB7caQ+\n' +
+          '2SXVY7ORily7LTKg1cFmuKHDzKTGFIp5/GU6dwIDAQABAoIBAArgFQ+Uk4UN4diY\n' +
+          'gJWCAaQlTVmP0UEHZQt/NmJrc9ZVduuhOP0hH6gF53nREHz5UQb4nXB2Ksa3MtYD\n' +
+          'Z1vhJcu/T7pvmib4q+Ij6oAmlyeL/xwVY3IUURMxX3tCdPItlk4PEFELKeqQOiIS\n' +
+          '7B0DYxWfJbMle3c95w5ruYEr2A+fHCKVSlDpg7uPd9VQ6t7bGMZZvc9tDSC1qPXQ\n' +
+          'Gd/WOMXxi+t/TpyVZ6tOcEekQzAMLmWElUUPx3TJ0ur0Zl2LZ7IvQEXXias4lUHV\n' +
+          'fnH3akDCMmdhlJSVqUfplrh85zAOh6fLloZagphj/Kpgfw1TZ+njSDYqSLYE0NZ1\n' +
+          'j+83feECgYEA2aNGgbc+t6QLrJJ63l9Mz541lVV3IUAxZ5ACqOnMkQVuLoa5IMwM\n' +
+          'oENIo38ptfHQqjQ9x8/tEINFqOHnQuOJ/+1xP9f0Me+0clRDCqjGYqNYgmakKyD7\n' +
+          'vey/q6kwHk679RVGiI1p+HdoA+CbEKWHJiRxE0RhAA3G3wGAq7kpJocCgYEAxp4/\n' +
+          'tCft+eHVRivspfDN//axc2TR6qWP9E1ueGvbiXPXv0Puag0W9cER/df/s5jW4Rqg\n' +
+          'CE8649HPUZ0FJT+YaeKgu2Sw9SMcGl4/uyHzg7KnXIeYyQZJPqQkKyXmIix8cw3+\n' +
+          'HBGRtwX5nOy0DgFdaMiH0F08peNI9QHKKTBoWJECgYEAyymJ1ekzWMaAR1Zt8EvS\n' +
+          'LjWoG4EuthFwjRZ4BSpLVk1Vb4VAKAeS+cAVfNpmG3xip6Ag0/ebe0CvtFk9QsmZ\n' +
+          'txj2EP0M7div/9H8y2SF3OpS41fhhIlDtyXcPuivDHu/Jaf4sdwgwlrk9EmlN0Lu\n' +
+          'CIMYMz4vtpclwGNss+EjMt0CgYEAqepD0Vm/iuCaVhfJsgSaFvnywSdlNfpBdtyv\n' +
+          'PzH2dFa4IZZ55hwgoklznNgmlnyQh68BbVpqpO+fDtDnz//h4ePRYb84a96Hcj9j\n' +
+          'AjJ/YxF5f/04xfEsw/wkPQ2FHYM1TDCSTWzyXcMs0gTl3H1qbfPvzF+XPMt+ZKwN\n' +
+          'SMNy4SECgYB3ig6t+XVfNkw8oBOh0Gx37XKbmImXsA8ucDAX9KUbMIvD03XCEf34\n' +
+          'jF3SNJh0SmHoT62vc+cJqPxMDP6E7Q1nZxsEyaAkKr2H4dSM4SlRm0VB+bS+jXsz\n' +
+          'PCiRGSm8eupuxfix05LMMreo4mC7e3Ir4JhdCsXxAMZIvbNyXcvUMA==\n' +
+          '-----END CERTIFICATE-----\n'
       });
       var request = '<?xml version=\\"1.0\\"?><samlp:AuthnRequest xmlns:samlp=\\"urn:oasis:names:tc:SAML:2.0:protocol\\" ID=\\"_ea40a8ab177df048d645\\" Version=\\"2.0\\" IssueInstant=\\"2017-08-22T19:30:01.363Z\\" ProtocolBinding=\\"urn:oasis:names$tc:SAML:2.0:bindings:HTTP-POST\\" AssertionConsumerServiceURL=\\"https://example.com/login/callback\\" Destination=\\"https://www.example.com\\"><saml:Issuer xmlns:saml=\\"urn:oasis:names:tc:SAML:2.0:assertion\\">onelogin_saml</saml:Issuer><s$mlp:NameIDPolicy xmlns:samlp=\\"urn:oasis:names:tc:SAML:2.0:protocol\\" Format=\\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\\" AllowCreate=\\"true\\"/><samlp:RequestedAuthnContext xmlns:samlp=\\"urn:oasis:names:tc:SAML:2.0:protoc$l\\" Comparison=\\"exact\\"><saml:AuthnContextClassRef xmlns:saml=\\"urn:oasis:names:tc:SAML:2.0:assertion\\">urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef></samlp:RequestedAuthnContext></samlp$AuthnRequest>';
       samlObj._requestToUrl(request, null, 'authorize', {}, function(err) {
@@ -1610,7 +1610,7 @@ describe( 'node-saml /', function() {
       });
       it('errors if bad xml', function(done) {
         var body = {
-          SAMLRequest: "asdf"
+          SAMLRequest: 'asdf'
         };
         samlObj.validateRedirect(body, this.request.originalQuery, function(err) {
           try {
@@ -1694,7 +1694,7 @@ describe( 'node-saml /', function() {
       });
       it('errors if bad xml', function(done) {
         var body = {
-          SAMLRequest: "asdf"
+          SAMLRequest: 'asdf'
         };
         samlObj.validateRedirect(body, null, function(err) {
           try {

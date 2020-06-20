@@ -11,6 +11,7 @@ module.exports = {
   rules: {
     'no-undefined': 'off',
     'no-unused-vars': 'off',
+    quotes: ['warn', 'single'],
     semi: [
       'error',
       'always'

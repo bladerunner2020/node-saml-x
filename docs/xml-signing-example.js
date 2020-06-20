@@ -13,9 +13,9 @@ const cert = `-----BEGIN CERTIFICATE-----
 -----END CERTIFICATE-----
 `;
 
-const saml_message = ``;
+const saml_message = '';
 
-const signed_info = `<SignedInfo...</SignedInfo>`;
+const signed_info = '<SignedInfo...</SignedInfo>';
 
 const signer = crypto.createSign('RSA-SHA1');
 signer.update(signed_info);
