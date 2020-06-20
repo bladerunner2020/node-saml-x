@@ -12,6 +12,7 @@ module.exports = {
     'no-undefined': 'off',
     'no-unused-vars': 'off',
     quotes: ['warn', 'single'],
+    curly: 'error',
     semi: [
       'error',
       'always'

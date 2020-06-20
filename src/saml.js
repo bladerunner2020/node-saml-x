@@ -75,8 +75,9 @@ class SAML {
 
   getAuthorizeUrl(req, options, callback) {
     this._generateAuthorizeRequest(req, this.options.passive, false, (err, request) => {
-      if (err)
+      if (err) {
         return callback(err);
+      }
       const operation = 'authorize';
       const overrideParams = options ? options.additionalParams || {} : {};
       this._requestToUrl(request, null, operation, this._getAdditionalParams(req, operation, overrideParams), callback);
@@ -178,8 +179,9 @@ class SAML {
       doc = new xmldom.DOMParser({
       }).parseFromString(xml);
 
-      if (!Object.prototype.hasOwnProperty.call(doc, 'documentElement'))
+      if (!Object.prototype.hasOwnProperty.call(doc, 'documentElement')) {
         throw new Error('SAMLResponse is not valid base64-encoded XML');
+      }
 
       inResponseTo = xpath(doc, '/*[local-name()=\'Response\']/@InResponseTo');
 
@@ -217,8 +219,7 @@ class SAML {
         }
 
         if (encryptedAssertions.length == 1) {
-          if (!this.options.decryptionPvk)
-            throw new Error('No decryption key for encrypted SAML response');
+          if (!this.options.decryptionPvk) { throw new Error('No decryption key for encrypted SAML response'); }
 
           const encryptedAssertionXml = encryptedAssertions[0].toString();
 
@@ -227,13 +228,11 @@ class SAML {
           const decryptedXml = await decryptFn(encryptedAssertionXml, xmlencOptions);
           const decryptedDoc = new xmldom.DOMParser().parseFromString(decryptedXml);
           const decryptedAssertions = xpath(decryptedDoc, '/*[local-name()=\'Assertion\']');
-          if (decryptedAssertions.length != 1)
-            throw new Error('Invalid EncryptedAssertion content');
+          if (decryptedAssertions.length != 1) {throw new Error('Invalid EncryptedAssertion content');}
 
-          if (this.options.cert &&
-            !validSignature &&
-            !this._validateSignature(decryptedXml, decryptedAssertions[0], certs))
+          if (this.options.cert && !validSignature && !this._validateSignature(decryptedXml, decryptedAssertions[0], certs)) {
             throw new Error('Invalid signature from encrypted assertion');
+          }
 
           this._processValidlySignedAssertion(decryptedAssertions[0].toString(), xml, inResponseTo, callback);
           return;
@@ -760,10 +759,8 @@ class SAML {
   _certToPEM(cert) {
     cert = cert.match(/.{1,64}/g).join('\n');
 
-    if (!cert.includes('-BEGIN CERTIFICATE-'))
-      cert = `-----BEGIN CERTIFICATE-----\n${cert}`;
-    if (!cert.includes('-END CERTIFICATE-'))
-      cert = `${cert}\n-----END CERTIFICATE-----\n`;
+    if (!cert.includes('-BEGIN CERTIFICATE-')) {cert = `-----BEGIN CERTIFICATE-----\n${cert}`;}
+    if (!cert.includes('-END CERTIFICATE-')) {cert = `${cert}\n-----END CERTIFICATE-----\n`;}
 
     return cert;
   }
@@ -815,22 +812,18 @@ class SAML {
     sig.loadSignature(signature);
     // We expect each signature to contain exactly one reference to the top level of the xml we
     //   are validating, so if we see anything else, reject.
-    if (sig.references.length != 1)
-      return false;
+    if (sig.references.length != 1) {return false;}
     const refUri = sig.references[0].uri;
     const refId = (refUri[0] === '#') ? refUri.substring(1) : refUri;
     // If we can't find the reference at the top level, reject
     const idAttribute = currentNode.getAttribute('ID') ? 'ID' : 'Id';
-    if (currentNode.getAttribute(idAttribute) != refId)
-      return false;
+    if (currentNode.getAttribute(idAttribute) != refId) {return false;}
     // If we find any extra referenced nodes, reject.  (xml-crypto only verifies one digest, so
     //   multiple candidate references is bad news)
     const totalReferencedNodes = xpath(currentNode.ownerDocument,
       `//*[@${idAttribute}='${refId}']`);
 
-    if (totalReferencedNodes.length > 1) {
-      return false;
-    }
+    if (totalReferencedNodes.length > 1) {return false;}
     return sig.checkSignature(fullXml);
   }
 
@@ -839,8 +832,7 @@ class SAML {
       if (inResponseTo) {
         const getFn = promisify(this.cacheProvider.get).bind(this.cacheProvider);
         const result = await getFn(inResponseTo);
-        if (!result)
-          throw new Error('InResponseTo is not valid');
+        if (!result) {throw new Error('InResponseTo is not valid');}
         return;
       } else {
         throw new Error('InResponseTo is missing from response');
@@ -919,8 +911,7 @@ class SAML {
   _verifyLogoutResponse({ LogoutResponse }) {
     return (async () => {
       const statusCode = LogoutResponse.Status[0].StatusCode[0].$.Value;
-      if (statusCode !== 'urn:oasis:names:tc:SAML:2.0:status:Success')
-        throw `Bad status code: ${statusCode}`;
+      if (statusCode !== 'urn:oasis:names:tc:SAML:2.0:status:Success') {throw `Bad status code: ${statusCode}`;}
 
       this._verifyIssuer(LogoutResponse);
       const inResponseTo = LogoutResponse.$.InResponseTo;
@@ -936,8 +927,7 @@ class SAML {
     if (this.options.idpIssuer) {
       const issuer = Issuer;
       if (issuer) {
-        if (issuer[0]._ !== this.options.idpIssuer)
-          throw `Unknown SAML issuer. Expected: ${this.options.idpIssuer} Received: ${issuer[0]._}`;
+        if (issuer[0]._ !== this.options.idpIssuer) {throw `Unknown SAML issuer. Expected: ${this.options.idpIssuer} Received: ${issuer[0]._}`;}
       } else {
         throw 'Missing SAML issuer';
       }
@@ -1036,7 +1026,7 @@ class SAML {
                     if (result) {
                       const createdAt = new Date(result);
                       if (nowMs < createdAt.getTime() + this.options.requestIdExpirationPeriodMs)
-                        foundValidInResponseTo = true;
+                        {foundValidInResponseTo = true;}
                     }
                     return removeFn(inResponseTo);
                   })
@@ -1062,17 +1052,13 @@ class SAML {
           throw new Error(msg);
         }
         if (conditions && conditions.$) {
-          const conErr = this._checkTimestampsValidityError(
-            nowMs, conditions.$.NotBefore, conditions.$.NotOnOrAfter);
-          if (conErr)
-            throw conErr;
+          const conErr = this._checkTimestampsValidityError(nowMs, conditions.$.NotBefore, conditions.$.NotOnOrAfter);
+          if (conErr) {throw conErr;}
         }
 
         if (this.options.audience) {
-          const audienceErr = this._checkAudienceValidityError(
-            this.options.audience, conditions.AudienceRestriction);
-          if (audienceErr)
-            throw audienceErr;
+          const audienceErr = this._checkAudienceValidityError(this.options.audience, conditions.AudienceRestriction);
+          if (audienceErr) {throw audienceErr;}
         }
 
         const attributeStatement = assertion.AttributeStatement;
@@ -1118,18 +1104,15 @@ class SAML {
   }
 
   _checkTimestampsValidityError(nowMs, notBefore, notOnOrAfter) {
-    if (this.options.acceptedClockSkewMs == -1)
-      return null;
+    if (this.options.acceptedClockSkewMs == -1) {return null;}
 
     if (notBefore) {
       const notBeforeMs = Date.parse(notBefore);
-      if (nowMs + this.options.acceptedClockSkewMs < notBeforeMs)
-        return new Error('SAML assertion not yet valid');
+      if (nowMs + this.options.acceptedClockSkewMs < notBeforeMs) {return new Error('SAML assertion not yet valid');}
     }
     if (notOnOrAfter) {
       const notOnOrAfterMs = Date.parse(notOnOrAfter);
-      if (nowMs - this.options.acceptedClockSkewMs >= notOnOrAfterMs)
-        return new Error('SAML assertion expired');
+      if (nowMs - this.options.acceptedClockSkewMs >= notOnOrAfterMs) {return new Error('SAML assertion expired');}
     }
 
     return null;
@@ -1193,10 +1176,10 @@ class SAML {
   }
 
   _keyToPEM(key) {
-    if (!key || typeof key !== 'string') return key;
+    if (!key || typeof key !== 'string') {return key;}
 
     const lines = key.split('\n');
-    if (lines.length !== 1) return key;
+    if (lines.length !== 1) {return key;}
 
     const wrappedKey = [
       '-----BEGIN PRIVATE KEY-----',

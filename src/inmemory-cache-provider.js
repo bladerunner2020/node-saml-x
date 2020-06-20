@@ -41,8 +41,9 @@ class CacheProvider {
     // we only want this to run if the process is still open; it shouldn't hold the process open (issue #68)
     //   (unref only introduced in node 0.9, so check whether we have it)
     // Skip this in 0.10.34 due to https://github.com/joyent/node/issues/8900
-    if (expirationTimer.unref && process.version !== 'v0.10.34')
-    expirationTimer.unref();
+    if (expirationTimer.unref && process.version !== 'v0.10.34') {
+      expirationTimer.unref();
+    }
   }
 
   /**
