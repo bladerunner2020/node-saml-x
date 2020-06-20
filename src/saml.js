@@ -15,83 +15,62 @@ const { signAuthnRequestPost } = require('./saml-post-signing');
 const { promisify } = require('util');
 
 class SAML {
-  constructor(options) {
-    this.options = this._initialize(options);
-    this.cacheProvider = this.options.cacheProvider;
-  }
-
-  _initialize(options) {
-    if (!options) {
-      options = {};
-    }
-
+  constructor(options = {}) {
     if (Object.prototype.hasOwnProperty.call(options, 'cert') && !options.cert) {
       throw new Error('Invalid property: cert must not be empty');
     }
 
-    if (!options.path) {
-      options.path = '/saml/consume';
+    let authnContext = options.authnContext === undefined ? 'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport' : options.authnContext;
+    if (!Array.isArray(authnContext)) {
+      authnContext = [authnContext];
     }
+    const requestIdExpirationPeriodMs = options.requestIdExpirationPeriodMs || 28800000; // 8 hours
 
-    if (!options.host) {
-      options.host = 'localhost';
-    }
+    this.options = {
+      callbackUrl: options.callbackUrl,
+      protocol: options.protocol,
+      path: options.path || '/saml/consume',
+      host: options.host || 'localhost',
+      issuer: options.issuer || 'onelogin_saml',
+      identifierFormat: options.identifierFormat === undefined ? 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress' : options.identifierFormat,
+      authnContext,
+      acceptedClockSkewMs: options.acceptedClockSkewMs || 0, // default to no skew
+      validateInResponseTo: options.validateInResponseTo || false,
+      requestIdExpirationPeriodMs,
+      cacheProvider: options.cacheProvider || new InMemoryCacheProvider({ keyExpirationPeriodMs: requestIdExpirationPeriodMs }),
+      entryPoint: options.entryPoint,
+      logoutUrl: options.logoutUrl || options.entryPoint || '', // Default to Entry Point
+      signatureAlgorithm: options.signatureAlgorithm || 'sha1', // sha1, sha256, or sha512
+      /**
+      * List of possible values for RACComparison:
+      * - exact : Assertion context must exactly match a context in the list
+      * - minimum:  Assertion context must be at least as strong as a context in the list
+      * - maximum:  Assertion context must be no stronger than a context in the list
+      * - better:  Assertion context must be stronger than all contexts in the list
+      */
+      RACComparison: ['exact', 'minimum', 'maximum', 'better'].includes(options.RACComparison) ? options.RACComparison : 'exact',
 
-    if (!options.issuer) {
-      options.issuer = 'onelogin_saml';
-    }
+      // options without defaults
+      audience: options.audience,
+      cert: options.cert,
+      privateCert: options.privateCert,
+      decryptionPvk: options.decryptionPvk,
+      digestAlgorithm: options.digestAlgorithm,
+      xmlSignatureTransforms: options.xmlSignatureTransforms,
+      additionalParams: options.additionalParams,
+      additionalAuthorizeParams: options.additionalAuthorizeParams,
+      attributeConsumingServiceIndex: options.attributeConsumingServiceIndex,
+      disableRequestedAuthnContext: options.disableRequestedAuthnContext,
+      forceAuthn: options.forceAuthn,
+      providerName: options.providerName,
+      disableRequestACSUrl: options.disableRequestACSUrl,
+      idpIssuer: options.idpIssuer,
+      additionalLogoutParams: options.additionalLogoutParams,
+      logoutCallbackUrl: options.logoutCallbackUrl,
+      passive: options.passive
+    };
 
-    if (options.identifierFormat === undefined) {
-      options.identifierFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress";
-    }
-
-    if (options.authnContext === undefined) {
-      options.authnContext = "urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport";
-    }
-
-    if (!Array.isArray(options.authnContext)) {
-      options.authnContext = [options.authnContext];
-    }
-
-    if (!options.acceptedClockSkewMs) {
-      // default to no skew
-      options.acceptedClockSkewMs = 0;
-    }
-
-    if (!options.validateInResponseTo) {
-      options.validateInResponseTo = false;
-    }
-
-    if (!options.requestIdExpirationPeriodMs) {
-      options.requestIdExpirationPeriodMs = 28800000;  // 8 hours
-    }
-
-    if (!options.cacheProvider) {
-      options.cacheProvider = new InMemoryCacheProvider({ keyExpirationPeriodMs: options.requestIdExpirationPeriodMs });
-    }
-
-    if (!options.logoutUrl) {
-      // Default to Entry Point
-      options.logoutUrl = options.entryPoint || '';
-    }
-
-    // sha1, sha256, or sha512
-    if (!options.signatureAlgorithm) {
-      options.signatureAlgorithm = 'sha1';
-    }
-
-    /**
-    * List of possible values:
-    * - exact : Assertion context must exactly match a context in the list
-    * - minimum:  Assertion context must be at least as strong as a context in the list
-    * - maximum:  Assertion context must be no stronger than a context in the list
-    * - better:  Assertion context must be stronger than all contexts in the list
-    */
-    if (!options.RACComparison || !['exact', 'minimum', 'maximum', 'better'].includes(options.RACComparison)) {
-      options.RACComparison = 'exact';
-    }
-
-    return options;
+    this.cacheProvider = this.options.cacheProvider;
   }
 
   getAuthorizeUrl(req, options, callback) {
