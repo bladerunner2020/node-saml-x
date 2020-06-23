@@ -4,11 +4,13 @@ const xpath = require('xpath');
 
 class XMLParser {
   constructor(xml, {
-    signaturePublicKeys
+    signaturePublicKeys,
+    additionalNamespaces = {}
   } = {}) {
 
     this.xml = xml;
     this.namespaces = {
+      ...additionalNamespaces,
       sig: 'http://www.w3.org/2000/09/xmldsig#'
     };
 

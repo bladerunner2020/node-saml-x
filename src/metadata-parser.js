@@ -5,8 +5,10 @@ class MetadataParser extends XMLParser {
   constructor(xml, {
     signaturePublicKeys
   } = {}) {
-    super(xml, {signaturePublicKeys});
-    this.namespaces.md = 'urn:oasis:names:tc:SAML:2.0:metadata';
+    super(xml, {
+      signaturePublicKeys,
+      additionalNamespaces: {md: 'urn:oasis:names:tc:SAML:2.0:metadata'}
+    });
   }
 
   get signingCertificates() {
