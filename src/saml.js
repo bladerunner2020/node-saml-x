@@ -14,6 +14,8 @@ const algorithms = require('./algorithms');
 const { signAuthnRequestPost } = require('./saml-post-signing');
 const { promisify } = require('util');
 
+const {XMLParser} = require('./xml-parser');
+
 class SAML {
   constructor(options = {}) {
     if (Object.prototype.hasOwnProperty.call(options, 'cert') && !options.cert) {
@@ -168,147 +170,145 @@ class SAML {
   }
 
   validatePostResponse({ SAMLResponse }, callback) {
-    let xml;
-    let doc;
     let inResponseTo;
 
     (async () => {
-      xml = Buffer.from(SAMLResponse, 'base64').toString('utf8');
-      doc = new xmldom.DOMParser({
-      }).parseFromString(xml);
+      const xml = Buffer.from(SAMLResponse, 'base64').toString('utf8');
+
+      const certs = (await this._certsToCheck()).map(cert => this._certToPEM(cert));
+
+      const xmlParser = new XMLParser(xml, {signaturePublicKeys: certs});
+
+      const doc = xmlParser.parsedXml;
 
       if (!Object.prototype.hasOwnProperty.call(doc, 'documentElement')) {
         throw new Error('SAMLResponse is not valid base64-encoded XML');
       }
 
-      inResponseTo = xpath(doc, '/*[local-name()=\'Response\']/@InResponseTo');
+      inResponseTo = xmlParser.query('/*[local-name()=\'Response\']/@InResponseTo');
 
       if (inResponseTo) {
         inResponseTo = inResponseTo.length ? inResponseTo[0].nodeValue : null;
 
-        return this._validateInResponseTo(inResponseTo);
+        await this._validateInResponseTo(inResponseTo);
       }
-    })()
-      .then(() => this._certsToCheck())
-      .then(async certs => {
-        // Check if this document has a valid top-level signature
-        let validSignature = false;
-        if (this.options.cert && this._validateSignature(xml, doc.documentElement, certs)) {
-          validSignature = true;
+
+      // Check if this document has a valid top-level signature
+      const validSignature = xmlParser.signatureVerified;
+
+      const assertionsQuery = '/*[local-name()=\'Response\']/*[local-name()=\'Assertion\']';
+      const assertions = xmlParser.query(assertionsQuery);
+      const encryptedAssertions = xmlParser.query('/*[local-name()=\'Response\']/*[local-name()=\'EncryptedAssertion\']');
+
+      if (assertions.length + encryptedAssertions.length > 1) {
+        // There's no reason I know of that we want to handle multiple assertions, and it seems like a
+        //   potential risk vector for signature scope issues, so treat this as an invalid signature
+        throw new Error('Invalid signature: multiple assertions');
+      }
+
+      if (assertions.length === 1) {
+        const validAssertionSignature = xmlParser.verifySignature(certs, assertionsQuery);
+        if (this.options.cert && !validSignature && !validAssertionSignature) {
+          throw new Error('Invalid signature');
+        }
+        return this._processValidlySignedAssertion(assertions[0].toString(), xml, inResponseTo, callback);
+      }
+
+      if (encryptedAssertions.length === 1) {
+        if (!this.options.decryptionPvk) { throw new Error('No decryption key for encrypted SAML response'); }
+
+        const encryptedAssertionXml = encryptedAssertions[0].toString();
+
+        const xmlencOptions = { key: this.options.decryptionPvk };
+        const decryptFn = promisify(xmlenc.decrypt).bind(xmlenc);
+        const decryptedXml = await decryptFn(encryptedAssertionXml, xmlencOptions);
+
+        const decryptedXmlParser = new XMLParser(decryptedXml, {signaturePublicKeys: certs});
+        const assertionsQuery = '/*[local-name()=\'Assertion\']';
+        const decryptedAssertions = decryptedXmlParser.query(assertionsQuery);
+
+        if (decryptedAssertions.length !== 1) {throw new Error('Invalid EncryptedAssertion content');}
+        const validAssertionSignature = decryptedXmlParser.verifySignature(certs, assertionsQuery);
+
+        if (this.options.cert && !validSignature && !validAssertionSignature) {
+          throw new Error('Invalid signature from encrypted assertion');
         }
 
-        const assertions = xpath(doc, '/*[local-name()=\'Response\']/*[local-name()=\'Assertion\']');
-        const encryptedAssertions = xpath(doc,
-          '/*[local-name()=\'Response\']/*[local-name()=\'EncryptedAssertion\']');
+        return this._processValidlySignedAssertion(decryptedAssertions[0].toString(), xml, inResponseTo, callback);
+      }
 
-        if (assertions.length + encryptedAssertions.length > 1) {
-          // There's no reason I know of that we want to handle multiple assertions, and it seems like a
-          //   potential risk vector for signature scope issues, so treat this as an invalid signature
-          throw new Error('Invalid signature: multiple assertions');
-        }
+      // If there's no assertion, fall back on xml2js response parsing for the status & LogoutResponse code.
 
-        if (assertions.length == 1) {
-          if (this.options.cert &&
-            !validSignature &&
-            !this._validateSignature(xml, assertions[0], certs)) {
-            throw new Error('Invalid signature');
-          }
-          return this._processValidlySignedAssertion(assertions[0].toString(), xml, inResponseTo, callback);
-        }
-
-        if (encryptedAssertions.length == 1) {
-          if (!this.options.decryptionPvk) { throw new Error('No decryption key for encrypted SAML response'); }
-
-          const encryptedAssertionXml = encryptedAssertions[0].toString();
-
-          const xmlencOptions = { key: this.options.decryptionPvk };
-          const decryptFn = promisify(xmlenc.decrypt).bind(xmlenc);
-          const decryptedXml = await decryptFn(encryptedAssertionXml, xmlencOptions);
-          const decryptedDoc = new xmldom.DOMParser().parseFromString(decryptedXml);
-          const decryptedAssertions = xpath(decryptedDoc, '/*[local-name()=\'Assertion\']');
-          if (decryptedAssertions.length != 1) {throw new Error('Invalid EncryptedAssertion content');}
-
-          if (this.options.cert && !validSignature && !this._validateSignature(decryptedXml, decryptedAssertions[0], certs)) {
-            throw new Error('Invalid signature from encrypted assertion');
-          }
-
-          this._processValidlySignedAssertion(decryptedAssertions[0].toString(), xml, inResponseTo, callback);
-          return;
-        }
-
-        // If there's no assertion, fall back on xml2js response parsing for the status &
-        //   LogoutResponse code.
-
-        const parserConfig = {
-          explicitRoot: true,
-          explicitCharkey: true,
-          tagNameProcessors: [xml2js.processors.stripPrefix]
-        };
-        const parser = new xml2js.Parser(parserConfig);
-        const doc2 = await parser.parseStringPromise(xml);
-        const response = doc2.Response;
-        if (response) {
-          const assertion = response.Assertion;
-          if (!assertion) {
-            const status = response.Status;
-            if (status) {
-              const statusCode = status[0].StatusCode;
-              if (statusCode && statusCode[0].$.Value === 'urn:oasis:names:tc:SAML:2.0:status:Responder') {
-                const nestedStatusCode = statusCode[0].StatusCode;
-                if (nestedStatusCode && nestedStatusCode[0].$.Value === 'urn:oasis:names:tc:SAML:2.0:status:NoPassive') {
-                  if (this.options.cert && !validSignature) {
-                    throw new Error('Invalid signature: NoPassive');
-                  }
-                  return callback(null, null, false);
+      const parserConfig = {
+        explicitRoot: true,
+        explicitCharkey: true,
+        tagNameProcessors: [xml2js.processors.stripPrefix]
+      };
+      const parser = new xml2js.Parser(parserConfig);
+      const doc2 = await parser.parseStringPromise(xml);
+      const response = doc2.Response;
+      if (response) {
+        const assertion = response.Assertion;
+        if (!assertion) {
+          const status = response.Status;
+          if (status) {
+            const statusCode = status[0].StatusCode;
+            if (statusCode && statusCode[0].$.Value === 'urn:oasis:names:tc:SAML:2.0:status:Responder') {
+              const nestedStatusCode = statusCode[0].StatusCode;
+              if (nestedStatusCode && nestedStatusCode[0].$.Value === 'urn:oasis:names:tc:SAML:2.0:status:NoPassive') {
+                if (this.options.cert && !validSignature) {
+                  throw new Error('Invalid signature: NoPassive');
                 }
-              }
-
-              // Note that we're not requiring a valid signature before this logic -- since we are
-              //   throwing an error in any case, and some providers don't sign error results,
-              //   let's go ahead and give the potentially more helpful error.
-              if (statusCode && statusCode[0].$.Value) {
-                const msgType = statusCode[0].$.Value.match(/[^:]*$/)[0];
-                if (msgType != 'Success') {
-                  let msg = 'unspecified';
-                  if (status[0].StatusMessage) {
-                    msg = status[0].StatusMessage[0]._;
-                  } else if (statusCode[0].StatusCode) {
-                    msg = statusCode[0].StatusCode[0].$.Value.match(/[^:]*$/)[0];
-                  }
-                  const error = new Error(`SAML provider returned ${msgType} error: ${msg}`);
-                  const builderOpts = {
-                    rootName: 'Status',
-                    headless: true
-                  };
-                  error.statusXml = new xml2js.Builder(builderOpts).buildObject(status[0]);
-                  throw error;
-                }
+                return callback(null, null, false);
               }
             }
-            throw new Error('Missing SAML assertion');
+
+            // Note that we're not requiring a valid signature before this logic -- since we are
+            //   throwing an error in any case, and some providers don't sign error results,
+            //   let's go ahead and give the potentially more helpful error.
+            if (statusCode && statusCode[0].$.Value) {
+              const msgType = statusCode[0].$.Value.match(/[^:]*$/)[0];
+              if (msgType != 'Success') {
+                let msg = 'unspecified';
+                if (status[0].StatusMessage) {
+                  msg = status[0].StatusMessage[0]._;
+                } else if (statusCode[0].StatusCode) {
+                  msg = statusCode[0].StatusCode[0].$.Value.match(/[^:]*$/)[0];
+                }
+                const error = new Error(`SAML provider returned ${msgType} error: ${msg}`);
+                const builderOpts = {
+                  rootName: 'Status',
+                  headless: true
+                };
+                error.statusXml = new xml2js.Builder(builderOpts).buildObject(status[0]);
+                throw error;
+              }
+            }
           }
-        } else {
-          if (this.options.cert && !validSignature) {
-            throw new Error('Invalid signature: No response found');
-          }
-          const logoutResponse = doc2.LogoutResponse;
-          if (logoutResponse) {
-            return callback(null, null, true);
-          } else {
-            throw new Error('Unknown SAML response message');
-          }
+          throw new Error('Missing SAML assertion');
         }
-      })
-      .catch(async err => {
-        debug('validatePostResponse resulted in an error: %s', err);
-        if (this.options.validateInResponseTo) {
-          const removeFn = promisify(this.cacheProvider.remove).bind(this.cacheProvider);
-          await removeFn(inResponseTo);
-          callback(err);
-        } else {
-          callback(err);
+      } else {
+        if (this.options.cert && !validSignature) {
+          throw new Error('Invalid signature: No response found');
         }
-      });
+        const logoutResponse = doc2.LogoutResponse;
+        if (logoutResponse) {
+          return callback(null, null, true);
+        } else {
+          throw new Error('Unknown SAML response message');
+        }
+      }
+    })()
+    .catch(async err => {
+      debug('validatePostResponse resulted in an error: %s', err);
+      if (this.options.validateInResponseTo) {
+        const removeFn = promisify(this.cacheProvider.remove).bind(this.cacheProvider);
+        await removeFn(inResponseTo);
+        callback(err);
+      } else {
+        callback(err);
+      }
+    });
   }
 
   validateRedirect(container, originalQuery, callback) {
@@ -343,7 +343,7 @@ class SAML {
 
   validatePostRequest({ SAMLRequest }, callback) {
     const xml = Buffer.from(SAMLRequest, 'base64').toString('utf8');
-    const dom = new xmldom.DOMParser().parseFromString(xml);
+
     const parserConfig = {
       explicitRoot: true,
       explicitCharkey: true,
@@ -354,13 +354,14 @@ class SAML {
     return parser.parseStringPromise(xml)
     .then(async (doc) => {
       const certs = await this._certsToCheck();
+      const xmlParser = new XMLParser(xml, {signaturePublicKeys: certs});
 
       // Check if this document has a valid top-level signature
-      if (this.options.cert && !this._validateSignature(xml, dom.documentElement, certs)) {
+      if (this.options.cert && !xmlParser.signatureVerified) {
         throw new Error('Invalid signature on documentElement');
       }
 
-      return processValidlySignedPostRequest(this, doc, dom, callback);
+      return processValidlySignedPostRequest(this, doc, xmlParser.parsedXml, callback);
     })
     .catch(callback);
   }
@@ -755,7 +756,7 @@ class SAML {
 
   async _certsToCheck() {
     if (!this.options.cert) {
-      return;
+      return [];
     }
     if (typeof (this.options.cert) === 'function') {
       let certs = await promisify(this.options.cert)();
@@ -769,50 +770,6 @@ class SAML {
       certs = [certs];
     }
     return certs;
-  }
-
-  // This function checks that the |currentNode| in the |fullXml| document contains exactly 1 valid
-  //   signature of the |currentNode|.
-  //
-  // See https://github.com/bergie/passport-saml/issues/19 for references to some of the attack
-  //   vectors against SAML signature verification.
-  _validateSignature(fullXml, currentNode, certs) {
-    const xpathSigQuery = './/*[local-name(.)=\'Signature\' and ' +
-      'namespace-uri(.)=\'http://www.w3.org/2000/09/xmldsig#\']';
-    const signatures = xpath(currentNode, xpathSigQuery);
-    // This function is expecting to validate exactly one signature, so if we find more or fewer
-    //   than that, reject.
-    if (signatures.length != 1) {
-      return false;
-    }
-
-    const signature = signatures[0];
-    return certs.some(certToCheck => this._validateSignatureForCert(signature, certToCheck, fullXml, currentNode));
-  }
-
-  // This function checks that the |signature| is signed with a given |cert|.
-  _validateSignatureForCert(signature, cert, fullXml, currentNode) {
-    const sig = new xmlCrypto.SignedXml();
-    sig.keyInfoProvider = {
-      getKeyInfo: key => '<X509Data></X509Data>',
-      getKey: keyInfo => this._certToPEM(cert),
-    };
-    sig.loadSignature(signature);
-    // We expect each signature to contain exactly one reference to the top level of the xml we
-    //   are validating, so if we see anything else, reject.
-    if (sig.references.length != 1) {return false;}
-    const refUri = sig.references[0].uri;
-    const refId = (refUri[0] === '#') ? refUri.substring(1) : refUri;
-    // If we can't find the reference at the top level, reject
-    const idAttribute = currentNode.getAttribute('ID') ? 'ID' : 'Id';
-    if (currentNode.getAttribute(idAttribute) != refId) {return false;}
-    // If we find any extra referenced nodes, reject.  (xml-crypto only verifies one digest, so
-    //   multiple candidate references is bad news)
-    const totalReferencedNodes = xpath(currentNode.ownerDocument,
-      `//*[@${idAttribute}='${refId}']`);
-
-    if (totalReferencedNodes.length > 1) {return false;}
-    return sig.checkSignature(fullXml);
   }
 
   async _validateInResponseTo(inResponseTo) {
