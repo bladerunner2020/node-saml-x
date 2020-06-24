@@ -10,8 +10,12 @@ class XMLParser {
 
     this.xml = xml;
     this.namespaces = {
-      ...additionalNamespaces,
-      sig: 'http://www.w3.org/2000/09/xmldsig#'
+      sig: 'http://www.w3.org/2000/09/xmldsig#',
+      saml2p: 'urn:oasis:names:tc:SAML:2.0:protocol',
+      samlp: 'urn:oasis:names:tc:SAML:2.0:protocol',
+      claim: 'urn:oasis:names:tc:SAML:2.0:assertion',
+      enc: 'http://www.w3.org/2001/04/xmlenc#',
+      ...additionalNamespaces
     };
 
     this.parsedXml = new xmldom.DOMParser({}).parseFromString(xml);

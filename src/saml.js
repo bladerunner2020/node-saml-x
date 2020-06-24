@@ -3,7 +3,6 @@ const zlib = require('zlib');
 const xml2js = require('xml2js');
 const xmlCrypto = require('xml-crypto');
 const crypto = require('crypto');
-const xmldom = require('xmldom');
 const url = require('url');
 const querystring = require('querystring');
 const xmlbuilder = require('xmlbuilder');
@@ -184,21 +183,16 @@ class SAML {
       if (!Object.prototype.hasOwnProperty.call(doc, 'documentElement')) {
         throw new Error('SAMLResponse is not valid base64-encoded XML');
       }
+      inResponseTo = xmlParser.query('/saml2p:Response')[0].getAttribute('InResponseTo');
 
-      inResponseTo = xmlParser.query('/*[local-name()=\'Response\']/@InResponseTo');
-
-      if (inResponseTo) {
-        inResponseTo = inResponseTo.length ? inResponseTo[0].nodeValue : null;
-
-        await this._validateInResponseTo(inResponseTo);
-      }
+      await this._validateInResponseTo(inResponseTo);
 
       // Check if this document has a valid top-level signature
       const validSignature = xmlParser.signatureVerified;
 
-      const assertionsQuery = '/*[local-name()=\'Response\']/*[local-name()=\'Assertion\']';
+      const assertionsQuery = '/saml2p:Response/claim:Assertion';
       const assertions = xmlParser.query(assertionsQuery);
-      const encryptedAssertions = xmlParser.query('/*[local-name()=\'Response\']/*[local-name()=\'EncryptedAssertion\']');
+      const encryptedAssertions = xmlParser.query('/saml2p:Response/claim:EncryptedAssertion');
 
       if (assertions.length + encryptedAssertions.length > 1) {
         // There's no reason I know of that we want to handle multiple assertions, and it seems like a
@@ -224,7 +218,8 @@ class SAML {
         const decryptedXml = await decryptFn(encryptedAssertionXml, xmlencOptions);
 
         const decryptedXmlParser = new XMLParser(decryptedXml, {signaturePublicKeys: certs});
-        const assertionsQuery = '/*[local-name()=\'Assertion\']';
+
+        const assertionsQuery = '/claim:Assertion';
         const decryptedAssertions = decryptedXmlParser.query(assertionsQuery);
 
         if (decryptedAssertions.length !== 1) {throw new Error('Invalid EncryptedAssertion content');}
@@ -320,39 +315,26 @@ class SAML {
         return callback(err);
       }
 
-      const dom = new xmldom.DOMParser().parseFromString(inflated.toString());
-      const parserConfig = {
-        explicitRoot: true,
-        explicitCharkey: true,
-        tagNameProcessors: [xml2js.processors.stripPrefix]
-      };
-      const parser = new xml2js.Parser(parserConfig);
-      return parser.parseStringPromise(inflated)
-        .then(async (doc) => {
-          if (samlMessageType === 'SAMLResponse') {
-            await this._verifyLogoutResponse(doc);
-          } else {
-            await this._verifyLogoutRequest(doc);
-          }
-          await this._hasValidSignatureForRedirect(container, originalQuery);
-          return processValidlySignedSamlLogout(this, doc, dom, callback);
-        })
-        .catch(callback);
+      const xmlParser = new XMLParser(inflated.toString());
+
+      (async () => {
+        if (samlMessageType === 'SAMLResponse') {
+          await this._verifyLogoutResponse(xmlParser);
+        } else {
+          await this._verifyLogoutRequest(xmlParser);
+        }
+        await this._hasValidSignatureForRedirect(container, originalQuery);
+        return processValidlySignedSamlLogout(this, xmlParser, callback);
+      })()
+      .catch(callback);
+
     });
   }
 
   validatePostRequest({ SAMLRequest }, callback) {
     const xml = Buffer.from(SAMLRequest, 'base64').toString('utf8');
 
-    const parserConfig = {
-      explicitRoot: true,
-      explicitCharkey: true,
-      tagNameProcessors: [xml2js.processors.stripPrefix]
-    };
-    const parser = new xml2js.Parser(parserConfig);
-
-    return parser.parseStringPromise(xml)
-    .then(async (doc) => {
+    (async () => {
       const certs = await this._certsToCheck();
       const xmlParser = new XMLParser(xml, {signaturePublicKeys: certs});
 
@@ -361,8 +343,8 @@ class SAML {
         throw new Error('Invalid signature on documentElement');
       }
 
-      return processValidlySignedPostRequest(this, doc, xmlParser.parsedXml, callback);
-    })
+      return processValidlySignedPostRequest(this, xmlParser, callback);
+    })()
     .catch(callback);
   }
 
@@ -381,15 +363,13 @@ class SAML {
 
     if (this.options.decryptionPvk) {
       if (!decryptionCert) {
-        throw new Error(
-          'Missing decryptionCert while generating metadata for decrypting service provider');
+        throw new Error('Missing decryptionCert while generating metadata for decrypting service provider');
       }
     }
 
     if (this.options.privateCert) {
       if (!signingCert) {
-        throw new Error(
-          'Missing signingCert while generating metadata for signing service provider messages');
+        throw new Error('Missing signingCert while generating metadata for signing service provider messages');
       }
     }
 
@@ -671,11 +651,7 @@ class SAML {
         return callback(new Error(`Unknown operation: ${operation}`));
       }
 
-      const samlMessage = request ? {
-        SAMLRequest: base64
-      } : {
-          SAMLResponse: base64
-        };
+      const samlMessage = request ? {SAMLRequest: base64} : {SAMLResponse: base64};
       Object.keys(additionalParameters).forEach(k => {
         samlMessage[k] = additionalParameters[k];
       });
@@ -706,8 +682,8 @@ class SAML {
 
     if (this.options.skipRequestCompression) {
       requestToUrlHelper(null, Buffer.from(request || response, 'utf8'));
-    }
-    else {
+    } else {
+
       zlib.deflateRaw(request || response, requestToUrlHelper);
     }
   }
@@ -726,10 +702,10 @@ class SAML {
     });
 
     let optionsAdditionalParamsForThisOperation = {};
-    if (operation == 'authorize') {
+    if (operation === 'authorize') {
       optionsAdditionalParamsForThisOperation = this.options.additionalAuthorizeParams || {};
     }
-    if (operation == 'logout') {
+    if (operation === 'logout') {
       optionsAdditionalParamsForThisOperation = this.options.additionalLogoutParams || {};
     }
 
@@ -841,22 +817,26 @@ class SAML {
     return verifier.verify(this._certToPEM(cert), signature, 'base64');
   }
 
-  async _verifyLogoutRequest({ LogoutRequest }) {
-    this._verifyIssuer(LogoutRequest);
+  async _verifyLogoutRequest(xmlParser) {
+    const issuer = xmlParser.query('/saml2p:LogoutRequest/claim:Issuer')[0].firstChild.data;
+    this._verifyIssuer(issuer);
     const nowMs = new Date().getTime();
-    const conditions = LogoutRequest.$;
-    const conErr = this._checkTimestampsValidityError(nowMs, conditions.NotBefore, conditions.NotOnOrAfter);
+    const NotOnOrAfter = xmlParser.query('/samlp:LogoutRequest')[0].getAttribute('NotOnOrAfter');
+    const NotBefore = xmlParser.query('/samlp:LogoutRequest')[0].getAttribute('NotBefore');
+    const conErr = this._checkTimestampsValidityError(nowMs, NotBefore, NotOnOrAfter);
     if (conErr) {
       throw conErr;
     }
   }
 
-  async _verifyLogoutResponse({ LogoutResponse }) {
-    const statusCode = LogoutResponse.Status[0].StatusCode[0].$.Value;
+  async _verifyLogoutResponse(xmlParser) {
+    const statusCode = xmlParser.query('/saml2p:LogoutResponse/samlp:Status/samlp:StatusCode')[0].getAttribute('Value');
     if (statusCode !== 'urn:oasis:names:tc:SAML:2.0:status:Success') {throw `Bad status code: ${statusCode}`;}
 
-    this._verifyIssuer(LogoutResponse);
-    const inResponseTo = LogoutResponse.$.InResponseTo;
+    const issuer = xmlParser.query('/saml2p:LogoutResponse/claim:Issuer')[0].firstChild.data;
+    this._verifyIssuer(issuer);
+    const inResponseTo = xmlParser.query('/saml2p:LogoutResponse')[0].getAttribute('InResponseTo');
+
     if (inResponseTo) {
       return this._validateInResponseTo(inResponseTo);
     }
@@ -864,11 +844,10 @@ class SAML {
     return true;
   }
 
-  _verifyIssuer({ Issuer }) {
+  _verifyIssuer(issuer) {
     if (this.options.idpIssuer) {
-      const issuer = Issuer;
       if (issuer) {
-        if (issuer[0]._ !== this.options.idpIssuer) {throw `Unknown SAML issuer. Expected: ${this.options.idpIssuer} Received: ${issuer[0]._}`;}
+        if (issuer !== this.options.idpIssuer) {throw `Unknown SAML issuer. Expected: ${this.options.idpIssuer} Received: ${issuer}`;}
       } else {
         throw 'Missing SAML issuer';
       }
@@ -1045,7 +1024,7 @@ class SAML {
   }
 
   _checkTimestampsValidityError(nowMs, notBefore, notOnOrAfter) {
-    if (this.options.acceptedClockSkewMs == -1) {return null;}
+    if (this.options.acceptedClockSkewMs === -1) {return null;}
 
     if (notBefore) {
       const notBeforeMs = Date.parse(notBefore);
@@ -1078,10 +1057,9 @@ class SAML {
     return null;
   }
 
-  async _getNameID({ options }, doc) {
-    const nameIds = xpath(doc, '/*[local-name()=\'LogoutRequest\']/*[local-name()=\'NameID\']');
-    const encryptedIds = xpath(doc,
-      '/*[local-name()=\'LogoutRequest\']/*[local-name()=\'EncryptedID\']');
+  async _getNameID({ options }, xmlParser) {
+    const nameIds = xmlParser.query('/saml2p:LogoutRequest/claim:NameID');
+    const encryptedIds = xmlParser.query('/saml2p:LogoutRequest/claim:EncryptedID');
 
     if (nameIds.length + encryptedIds.length > 1) {
       throw new Error('Invalid LogoutRequest');
@@ -1093,8 +1071,7 @@ class SAML {
       if (!options.decryptionPvk) {
         throw new Error('No decryption key for encrypted SAML response');
       }
-
-      const encryptedDatas = xpath(encryptedIds[0], './*[local-name()=\'EncryptedData\']');
+      const encryptedDatas = xmlParser.query('/saml2p:LogoutRequest/claim:EncryptedID/enc:EncryptedData');
 
       if (encryptedDatas.length !== 1) {
         throw new Error('Invalid LogoutRequest');
@@ -1105,8 +1082,9 @@ class SAML {
       const decryptFn = promisify(xmlenc.decrypt).bind(xmlenc);
 
       const decryptedXml = await decryptFn(encryptedDataXml, xmlencOptions);
-      const decryptedDoc = new xmldom.DOMParser().parseFromString(decryptedXml);
-      const decryptedIds = xpath(decryptedDoc, '/*[local-name()=\'NameID\']');
+      const decryptedXmlParser = new XMLParser(decryptedXml);
+      const decryptedIds = decryptedXmlParser.query('/*[local-name()=\'NameID\']');
+
       if (decryptedIds.length !== 1) {
         throw new Error('Invalid EncryptedAssertion content');
       }
@@ -1132,14 +1110,14 @@ class SAML {
   }
 }
 
-function processValidlySignedSamlLogout(self, doc, dom, callback) {
-  const response = doc.LogoutResponse;
-  const request = doc.LogoutRequest;
+function processValidlySignedSamlLogout(self, xmlParser, callback) {
+  const request = xmlParser.query('/saml2p:LogoutRequest')[0];
+  const response = xmlParser.query('/saml2p:LogoutResponse')[0];
 
   if (response) {
     return callback(null, null, true);
   } else if (request) {
-    processValidlySignedPostRequest(self, doc, dom, callback);
+    return processValidlySignedPostRequest(self, xmlParser, callback);
   } else {
     throw new Error('Unknown SAML response message');
   }
@@ -1153,23 +1131,25 @@ function returnNameID(nameid) {
   };
 }
 
-function processValidlySignedPostRequest(self, { LogoutRequest }, dom, callback) {
-  const request = LogoutRequest;
+function processValidlySignedPostRequest(self, xmlParser, callback) {
+  const request = xmlParser.query('/saml2p:LogoutRequest')[0];
   if (request) {
     const profile = {};
-    if (request.$.ID) {
-      profile.ID = request.$.ID;
+
+    const ID = request.getAttribute('ID');
+    if (ID) {
+      profile.ID = ID;
     } else {
       return callback(new Error('Missing SAML LogoutRequest ID'));
     }
-    const issuer = request.Issuer;
-    if (issuer && issuer[0]._) {
-      profile.issuer = issuer[0]._;
+    const issuer = xmlParser.query('/saml2p:LogoutRequest/claim:Issuer')[0].firstChild.data;
+    if (issuer) {
+      profile.issuer = issuer;
     } else {
       return callback(new Error('Missing SAML issuer'));
     }
 
-    return self._getNameID(self, dom)
+    return self._getNameID(self, xmlParser)
     .then((nameID) => {
       if (nameID) {
         profile.nameID = nameID.value;
@@ -1179,9 +1159,11 @@ function processValidlySignedPostRequest(self, { LogoutRequest }, dom, callback)
       } else {
         throw new Error('Missing SAML NameID');
       }
-      const sessionIndex = request.SessionIndex;
-      if (sessionIndex) {
-        profile.sessionIndex = sessionIndex[0]._;
+
+      const sessionIndexes = xmlParser.query('/saml2p:LogoutRequest/samlp:SessionIndex');
+      if (sessionIndexes.length) {
+        const sessionIndex = sessionIndexes[0].firstChild.data;
+        profile.sessionIndex = sessionIndex;
       }
       return callback(null, profile, true);
     })
