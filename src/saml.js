@@ -3,7 +3,7 @@ const zlib = require('zlib');
 const xml2js = require('xml2js');
 const xmlCrypto = require('xml-crypto');
 const crypto = require('crypto');
-const url = require('url');
+const {URL} = require('url');
 const querystring = require('querystring');
 const xmlbuilder = require('xmlbuilder');
 const xmlenc = require('xml-encryption');
@@ -74,17 +74,15 @@ class SAML {
     this.cacheProvider = this.options.cacheProvider;
   }
 
-  getAuthorizeUrl(req, options, callback) {
-    return this._generateAuthorizeRequest(req, this.options.passive, false)
-      .then((request) => {
-        const operation = 'authorize';
-        const overrideParams = options ? options.additionalParams || {} : {};
-        return this._requestToUrl(request, null, operation, this._getAdditionalParams(req, operation, overrideParams), callback);
-      })
-      .catch(callback);
+  async getAuthorizeUrl(options) {
+    const request = await this._generateAuthorizeRequest({isPassive: this.options.passive, isHttpPostBinding: false});
+
+    const operation = 'authorize';
+    const overrideParams = options ? options.additionalParams || {} : {};
+    return this._requestToUrl(request, null, operation, this._getAdditionalParams(null, operation, overrideParams));
   }
 
-  getAuthorizeForm(req, callback) {
+  async getAuthorizeForm() {
     // The quoteattr() function is used in a context, where the result will not be evaluated by javascript
     // but must be interpreted by an XML or HTML parser, and it must absolutely avoid breaking the syntax
     // of an element attribute.
@@ -102,76 +100,66 @@ class SAML {
         .replace(/[\r\n]/g, preserveCR);
     };
 
-    const getAuthorizeFormHelper = (err, buffer) => {
-      if (err) {
-        return callback(err);
-      }
+    const request = await this._generateAuthorizeRequest({isPassive: this.options.passive, isHttpPostBinding: true});
 
-      const operation = 'authorize';
-      const additionalParameters = this._getAdditionalParams(req, operation);
-      const samlMessage = {
-        SAMLRequest: buffer.toString('base64')
-      };
+    let buffer;
+    if (this.options.skipRequestCompression) {
+      buffer = Buffer.from(request, 'utf8');
+    } else {
+      buffer = promisify(zlib.deflateRaw)(request);
+    }
 
-      Object.keys(additionalParameters).forEach(k => {
-        samlMessage[k] = additionalParameters[k] || '';
-      });
-
-      const formInputs = Object.keys(samlMessage).map(k => `<input type="hidden" name="${k}" value="${quoteattr(samlMessage[k])}" />`).join('\r\n');
-
-      callback(null, [
-        '<!DOCTYPE html>',
-        '<html>',
-        '<head>',
-        '<meta charset="utf-8">',
-        '<meta http-equiv="x-ua-compatible" content="ie=edge">',
-        '</head>',
-        '<body onload="document.forms[0].submit()">',
-        '<noscript>',
-        '<p><strong>Note:</strong> Since your browser does not support JavaScript, you must press the button below once to proceed.</p>',
-        '</noscript>',
-        `<form method="post" action="${encodeURI(this.options.entryPoint)}">`,
-        formInputs,
-        '<input type="submit" value="Submit" />',
-        '</form>',
-        '<script>document.forms[0].style.display="none";</script>', // Hide the form if JavaScript is enabled
-        '</body>',
-        '</html>'
-      ].join('\r\n'));
+    const operation = 'authorize';
+    const additionalParameters = this._getAdditionalParams(null, operation);
+    const samlMessage = {
+      SAMLRequest: buffer.toString('base64')
     };
 
+    Object.keys(additionalParameters).forEach(k => {
+      samlMessage[k] = additionalParameters[k] || '';
+    });
 
-    return this._generateAuthorizeRequest(req, this.options.passive, true)
-      .then((request) => {
-        if (this.options.skipRequestCompression) {
-          getAuthorizeFormHelper(null, Buffer.from(request, 'utf8'));
-        } else {
-          zlib.deflateRaw(request, getAuthorizeFormHelper);
-        }
-      })
-      .catch(callback);
+    const formInputs = Object.keys(samlMessage).map(k => `<input type="hidden" name="${k}" value="${quoteattr(samlMessage[k])}" />`).join('\r\n');
+
+    return [
+      '<!DOCTYPE html>',
+      '<html>',
+      '<head>',
+      '<meta charset="utf-8">',
+      '<meta http-equiv="x-ua-compatible" content="ie=edge">',
+      '</head>',
+      '<body onload="document.forms[0].submit()">',
+      '<noscript>',
+      '<p><strong>Note:</strong> Since your browser does not support JavaScript, you must press the button below once to proceed.</p>',
+      '</noscript>',
+      `<form method="post" action="${encodeURI(this.options.entryPoint)}">`,
+      formInputs,
+      '<input type="submit" value="Submit" />',
+      '</form>',
+      '<script>document.forms[0].style.display="none";</script>', // Hide the form if JavaScript is enabled
+      '</body>',
+      '</html>'
+    ].join('\r\n');
   }
 
-  getLogoutUrl(req, options, callback) {
-    return this._generateLogoutRequest(req)
-      .then(request => {
-        const operation = 'logout';
-        const overrideParams = options ? options.additionalParams || {} : {};
-        return this._requestToUrl(request, null, operation, this._getAdditionalParams(req, operation, overrideParams), callback);
-      });
+  async getLogoutUrl(user, options) {
+    const request = await this._generateLogoutRequest(user);
+
+    const operation = 'logout';
+    const overrideParams = options ? options.additionalParams || {} : {};
+    return this._requestToUrl(request, null, operation, this._getAdditionalParams(null, operation, overrideParams));
   }
 
-  getLogoutResponseUrl(req, {additionalParams = {}} = {}, callback) {
-    const response = this._generateLogoutResponse(req, req.samlLogoutRequest);
+  async getLogoutResponseUrl({user, samlLogoutRequest} = {}, {additionalParams = {}} = {}) {
+    const response = this._generateLogoutResponse(user, samlLogoutRequest);
     const operation = 'logout';
     const overrideParams = additionalParams;
-    this._requestToUrl(null, response, operation, this._getAdditionalParams(req, operation, overrideParams), callback);
+    return this._requestToUrl(null, response, operation, this._getAdditionalParams(null, operation, overrideParams));
   }
 
-  validatePostResponse({ SAMLResponse }, callback) {
+  async validatePostResponse({ SAMLResponse }) {
     let inResponseTo;
-
-    (async () => {
+    try {
       const xml = Buffer.from(SAMLResponse, 'base64').toString('utf8');
 
       const certs = (await this._certsToCheck()).map(cert => this._certToPEM(cert));
@@ -205,7 +193,7 @@ class SAML {
         if (this.options.cert && !validSignature && !validAssertionSignature) {
           throw new Error('Invalid signature');
         }
-        return this._processValidlySignedAssertion(assertions[0].toString(), xml, inResponseTo, callback);
+        return this._processValidlySignedAssertion(assertions[0].toString(), xml, inResponseTo);
       }
 
       if (encryptedAssertions.length === 1) {
@@ -229,7 +217,7 @@ class SAML {
           throw new Error('Invalid signature from encrypted assertion');
         }
 
-        return this._processValidlySignedAssertion(decryptedAssertions[0].toString(), xml, inResponseTo, callback);
+        return this._processValidlySignedAssertion(decryptedAssertions[0].toString(), xml, inResponseTo);
       }
 
       // If there's no assertion, fall back on xml2js response parsing for the status & LogoutResponse code.
@@ -254,7 +242,7 @@ class SAML {
                 if (this.options.cert && !validSignature) {
                   throw new Error('Invalid signature: NoPassive');
                 }
-                return callback(null, null, false);
+                return {profile: null, success: false};
               }
             }
 
@@ -263,7 +251,7 @@ class SAML {
             //   let's go ahead and give the potentially more helpful error.
             if (statusCode && statusCode[0].$.Value) {
               const msgType = statusCode[0].$.Value.match(/[^:]*$/)[0];
-              if (msgType != 'Success') {
+              if (msgType !== 'Success') {
                 let msg = 'unspecified';
                 if (status[0].StatusMessage) {
                   msg = status[0].StatusMessage[0]._;
@@ -288,64 +276,49 @@ class SAML {
         }
         const logoutResponse = doc2.LogoutResponse;
         if (logoutResponse) {
-          return callback(null, null, true);
+          return {profile: null, success: true};
         } else {
           throw new Error('Unknown SAML response message');
         }
       }
-    })()
-    .catch(async err => {
+    } catch(err) {
       debug('validatePostResponse resulted in an error: %s', err);
       if (this.options.validateInResponseTo) {
-        const removeFn = promisify(this.cacheProvider.remove).bind(this.cacheProvider);
-        await removeFn(inResponseTo);
-        callback(err);
-      } else {
-        callback(err);
+        await this.cacheProvider.remove(inResponseTo);
       }
-    });
+      throw err;
+    }
   }
 
-  validateRedirect(container, originalQuery, callback) {
+  async validateRedirect(container, originalQuery) {
     const samlMessageType = container.SAMLRequest ? 'SAMLRequest' : 'SAMLResponse';
 
     const data = Buffer.from(container[samlMessageType], 'base64');
-    zlib.inflateRaw(data, (err, inflated) => {
-      if (err) {
-        return callback(err);
-      }
+    const inflated = await promisify(zlib.inflateRaw)(data);
 
-      const xmlParser = new XMLParser(inflated.toString());
+    const xmlParser = new XMLParser(inflated.toString());
 
-      (async () => {
-        if (samlMessageType === 'SAMLResponse') {
-          await this._verifyLogoutResponse(xmlParser);
-        } else {
-          await this._verifyLogoutRequest(xmlParser);
-        }
-        await this._hasValidSignatureForRedirect(container, originalQuery);
-        return processValidlySignedSamlLogout(this, xmlParser, callback);
-      })()
-      .catch(callback);
-
-    });
+    if (samlMessageType === 'SAMLResponse') {
+      await this._verifyLogoutResponse(xmlParser);
+    } else {
+      await this._verifyLogoutRequest(xmlParser);
+    }
+    await this._hasValidSignatureForRedirect(container, originalQuery);
+    return processValidlySignedSamlLogout(this, xmlParser);
   }
 
-  validatePostRequest({ SAMLRequest }, callback) {
+  async validatePostRequest({ SAMLRequest }) {
     const xml = Buffer.from(SAMLRequest, 'base64').toString('utf8');
 
-    (async () => {
-      const certs = await this._certsToCheck();
-      const xmlParser = new XMLParser(xml, {signaturePublicKeys: certs});
+    const certs = await this._certsToCheck();
+    const xmlParser = new XMLParser(xml, {signaturePublicKeys: certs});
 
-      // Check if this document has a valid top-level signature
-      if (this.options.cert && !xmlParser.signatureVerified) {
-        throw new Error('Invalid signature on documentElement');
-      }
+    // Check if this document has a valid top-level signature
+    if (this.options.cert && !xmlParser.signatureVerified) {
+      throw new Error('Invalid signature on documentElement');
+    }
 
-      return processValidlySignedPostRequest(this, xmlParser, callback);
-    })()
-    .catch(callback);
+    return processValidlySignedPostRequest(this, xmlParser);
   }
 
   generateServiceProviderMetadata(decryptionCert, signingCert) {
@@ -433,28 +406,23 @@ class SAML {
       '@index': '1',
       '@isDefault': 'true',
       '@Binding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
-      '@Location': this._getCallbackUrl({})
+      '@Location': this._getCallbackUrl()
     };
     return xmlbuilder.create(metadata).end({ pretty: true, indent: '  ', newline: '\n' });
   }
 
   // private methods
-  _getProtocol({ protocol }) {
-    return this.options.protocol || (protocol || 'http').concat('://');
-  }
 
-  _getCallbackUrl(req) {
+  _getCallbackUrl() {
     // Post-auth destination
     if (this.options.callbackUrl) {
       return this.options.callbackUrl;
     } else {
-      let host;
-      if (req.headers) {
-        host = req.headers.host;
-      } else {
-        host = this.options.host;
-      }
-      return this._getProtocol(req) + host + this.options.path;
+      const url = new URL('http://localhost');
+      url.host = this.options.host;
+      url.protocol = this.options.protocol;
+      url.pathname = this.options.path;
+      return url.toString();
     }
   }
 
@@ -487,14 +455,13 @@ class SAML {
     samlMessage.Signature = signer.sign(this._keyToPEM(this.options.privateCert), 'base64');
   }
 
-  async _generateAuthorizeRequest(req, isPassive, isHttpPostBinding) {
+  async _generateAuthorizeRequest({isPassive, isHttpPostBinding} = {}) {
     const id = `_${this._generateUniqueID()}`;
     const instant = this._generateInstant();
     const forceAuthn = this.options.forceAuthn || false;
 
     if (this.options.validateInResponseTo) {
-      const saveFn = promisify(this.cacheProvider.save).bind(this.cacheProvider);
-      await saveFn(id, instant);
+      await this.cacheProvider.save(id, instant);
     }
 
     const request = {
@@ -521,7 +488,7 @@ class SAML {
     }
 
     if (!this.options.disableRequestACSUrl) {
-      request['samlp:AuthnRequest']['@AssertionConsumerServiceURL'] = this._getCallbackUrl(req);
+      request['samlp:AuthnRequest']['@AssertionConsumerServiceURL'] = this._getCallbackUrl();
     }
 
     if (this.options.identifierFormat) {
@@ -548,7 +515,7 @@ class SAML {
       };
     }
 
-    if (this.options.attributeConsumingServiceIndex != null) {
+    if (this.options.attributeConsumingServiceIndex !== null) {
       request['samlp:AuthnRequest']['@AttributeConsumingServiceIndex'] = this.options.attributeConsumingServiceIndex;
     }
 
@@ -564,7 +531,7 @@ class SAML {
     return stringRequest;
   }
 
-  async _generateLogoutRequest({ user }) {
+  async _generateLogoutRequest(user) {
     const id = `_${this._generateUniqueID()}`;
     const instant = this._generateInstant();
 
@@ -587,11 +554,11 @@ class SAML {
       }
     };
 
-    if (user.nameQualifier != null) {
+    if (user.nameQualifier !== null) {
       request['samlp:LogoutRequest']['saml:NameID']['@NameQualifier'] = user.nameQualifier;
     }
 
-    if (user.spNameQualifier != null) {
+    if (user.spNameQualifier !== null) {
       request['samlp:LogoutRequest']['saml:NameID']['@SPNameQualifier'] = user.spNameQualifier;
     }
 
@@ -601,8 +568,8 @@ class SAML {
         '#text': user.sessionIndex
       };
     }
-    const saveFn = promisify(this.cacheProvider.save).bind(this.cacheProvider);
-    await saveFn(id, instant);
+
+    await this.cacheProvider.save(id, instant);
     return xmlbuilder.create(request).end();
   }
 
@@ -633,65 +600,53 @@ class SAML {
     return xmlbuilder.create(request).end();
   }
 
-  _requestToUrl(request, response, operation, additionalParameters, callback) {
-
-    const requestToUrlHelper = (err, buffer) => {
-      if (err) {
-        return callback(err);
-      }
-
-      const base64 = buffer.toString('base64');
-      let target = url.parse(this.options.entryPoint, true);
-
-      if (operation === 'logout') {
-        if (this.options.logoutUrl) {
-          target = url.parse(this.options.logoutUrl, true);
-        }
-      } else if (operation !== 'authorize') {
-        return callback(new Error(`Unknown operation: ${operation}`));
-      }
-
-      const samlMessage = request ? {SAMLRequest: base64} : {SAMLResponse: base64};
-      Object.keys(additionalParameters).forEach(k => {
-        samlMessage[k] = additionalParameters[k];
-      });
-
-      if (this.options.privateCert) {
-        try {
-          if (!this.options.entryPoint) {
-            throw new Error('"entryPoint" config parameter is required for signed messages');
-          }
-
-          // sets .SigAlg and .Signature
-          this._signRequest(samlMessage);
-
-        } catch (ex) {
-          return callback(ex);
-        }
-      }
-      Object.keys(samlMessage).forEach(k => {
-        target.query[k] = samlMessage[k];
-      });
-
-      // Delete 'search' to for pulling query string from 'query'
-      // https://nodejs.org/api/url.html#url_url_format_urlobj
-      delete target.search;
-
-      callback(null, url.format(target));
-    };
-
-    if (this.options.skipRequestCompression) {
-      requestToUrlHelper(null, Buffer.from(request || response, 'utf8'));
-    } else {
-
-      zlib.deflateRaw(request || response, requestToUrlHelper);
+  async _requestToUrl(request, response, operation, additionalParameters) {
+    if (this.options.privateCert && !this.options.entryPoint) {
+      throw new Error('"entryPoint" config parameter is required for signed messages');
     }
+
+    let buffer;
+    if (this.options.skipRequestCompression) {
+      buffer = Buffer.from(request || response, 'utf8');
+    } else {
+      buffer = await promisify(zlib.deflateRaw)(request || response);
+    }
+
+    const base64 = buffer.toString('base64');
+    const samlMessage = request ? {SAMLRequest: base64} : {SAMLResponse: base64};
+
+    let target;
+
+    if (operation === 'logout') {
+      if (this.options.logoutUrl) {
+        target = new URL(this.options.logoutUrl);
+      }
+    } else if (operation !== 'authorize') {
+      throw new Error(`Unknown operation: ${operation}`);
+    }
+
+    if (!target) {
+      target = new URL(this.options.entryPoint);
+    }
+
+    Object.keys(additionalParameters).forEach(k => {
+      samlMessage[k] = additionalParameters[k];
+    });
+
+    if (this.options.privateCert) {
+      // sets .SigAlg and .Signature
+      this._signRequest(samlMessage);
+    }
+    Object.keys(samlMessage).forEach(k => {
+      target.searchParams.append(k, samlMessage[k]);
+    });
+
+    return target.toString();
   }
 
-  _getAdditionalParams({ query, body }, operation, overrideParams) {
+  _getAdditionalParams(RelayState, operation, overrideParams) {
     const additionalParams = {};
 
-    const RelayState = query && query.RelayState || body && body.RelayState;
     if (RelayState) {
       additionalParams.RelayState = RelayState;
     }
@@ -751,8 +706,7 @@ class SAML {
   async _validateInResponseTo(inResponseTo) {
     if (this.options.validateInResponseTo) {
       if (inResponseTo) {
-        const getFn = promisify(this.cacheProvider.get).bind(this.cacheProvider);
-        const result = await getFn(inResponseTo);
+        const result = await this.cacheProvider.get(inResponseTo);
         if (!result) {throw new Error('InResponseTo is not valid');}
         return;
       } else {
@@ -786,7 +740,7 @@ class SAML {
       ));
 
       if (!hasValidQuerySignature) {
-        throw 'Invalid signature';
+        throw new Error('Invalid signature');
       }
       return true;
     } else {
@@ -806,9 +760,8 @@ class SAML {
     let matchingAlgo;
     if (i > -1) {
       matchingAlgo = crypto.getHashes()[i];
-    }
-    else {
-      throw `${alg} is not supported`;
+    } else {
+      throw new Error(`${alg} is not supported`);
     }
 
     const verifier = crypto.createVerify(matchingAlgo);
@@ -831,7 +784,7 @@ class SAML {
 
   async _verifyLogoutResponse(xmlParser) {
     const statusCode = xmlParser.query('/saml2p:LogoutResponse/samlp:Status/samlp:StatusCode')[0].getAttribute('Value');
-    if (statusCode !== 'urn:oasis:names:tc:SAML:2.0:status:Success') {throw `Bad status code: ${statusCode}`;}
+    if (statusCode !== 'urn:oasis:names:tc:SAML:2.0:status:Success') {throw new Error(`Bad status code: ${statusCode}`);}
 
     const issuer = xmlParser.query('/saml2p:LogoutResponse/claim:Issuer')[0].firstChild.data;
     this._verifyIssuer(issuer);
@@ -847,14 +800,14 @@ class SAML {
   _verifyIssuer(issuer) {
     if (this.options.idpIssuer) {
       if (issuer) {
-        if (issuer !== this.options.idpIssuer) {throw `Unknown SAML issuer. Expected: ${this.options.idpIssuer} Received: ${issuer}`;}
+        if (issuer !== this.options.idpIssuer) {throw new Error(`Unknown SAML issuer. Expected: ${this.options.idpIssuer} Received: ${issuer}`);}
       } else {
-        throw 'Missing SAML issuer';
+        throw new Error('Missing SAML issuer');
       }
     }
   }
 
-  _processValidlySignedAssertion(xml, samlResponseXml, inResponseTo, callback) {
+  async _processValidlySignedAssertion(xml, samlResponseXml, inResponseTo) {
     let msg;
     const parserConfig = {
       explicitRoot: true,
@@ -866,161 +819,152 @@ class SAML {
     let assertion;
     let parsedAssertion;
     const parser = new xml2js.Parser(parserConfig);
-    parser.parseStringPromise(xml)
-      .then(doc => {
-        parsedAssertion = doc;
-        assertion = doc.Assertion;
+    const doc = await parser.parseStringPromise(xml);
 
-        const issuer = assertion.Issuer;
-        if (issuer && issuer[0]._) {
-          profile.issuer = issuer[0]._;
+    parsedAssertion = doc;
+    assertion = doc.Assertion;
+
+    const issuer = assertion.Issuer;
+    if (issuer && issuer[0]._) {
+      profile.issuer = issuer[0]._;
+    }
+
+    if (inResponseTo) {
+      profile.inResponseTo = inResponseTo;
+    }
+
+    const authnStatement = assertion.AuthnStatement;
+    if (authnStatement) {
+      if (authnStatement[0].$ && authnStatement[0].$.SessionIndex) {
+        profile.sessionIndex = authnStatement[0].$.SessionIndex;
+      }
+    }
+
+    const subject = assertion.Subject;
+    let subjectConfirmation;
+    let confirmData;
+    if (subject) {
+      const nameID = subject[0].NameID;
+      if (nameID && nameID[0]._) {
+        profile.nameID = nameID[0]._;
+
+        if (nameID[0].$ && nameID[0].$.Format) {
+          profile.nameIDFormat = nameID[0].$.Format;
+          profile.nameQualifier = nameID[0].$.NameQualifier;
+          profile.spNameQualifier = nameID[0].$.SPNameQualifier;
         }
+      }
 
-        if (inResponseTo) {
-          profile.inResponseTo = inResponseTo;
-        }
+      subjectConfirmation = subject[0].SubjectConfirmation ?
+        subject[0].SubjectConfirmation[0] : null;
+      confirmData = subjectConfirmation && subjectConfirmation.SubjectConfirmationData ?
+        subjectConfirmation.SubjectConfirmationData[0] : null;
+      if (subject[0].SubjectConfirmation && subject[0].SubjectConfirmation.length > 1) {
+        msg = 'Unable to process multiple SubjectConfirmations in SAML assertion';
+        throw new Error(msg);
+      }
 
-        const authnStatement = assertion.AuthnStatement;
-        if (authnStatement) {
-          if (authnStatement[0].$ && authnStatement[0].$.SessionIndex) {
-            profile.sessionIndex = authnStatement[0].$.SessionIndex;
+      if (subjectConfirmation) {
+        if (confirmData && confirmData.$) {
+          const subjectNotBefore = confirmData.$.NotBefore;
+          const subjectNotOnOrAfter = confirmData.$.NotOnOrAfter;
+
+          const subjErr = this._checkTimestampsValidityError(
+            nowMs, subjectNotBefore, subjectNotOnOrAfter);
+          if (subjErr) {
+            throw subjErr;
           }
         }
+      }
+    }
 
-        const subject = assertion.Subject;
-        let subjectConfirmation;
-        let confirmData;
-        if (subject) {
-          const nameID = subject[0].NameID;
-          if (nameID && nameID[0]._) {
-            profile.nameID = nameID[0]._;
+    // Test to see that if we have a SubjectConfirmation InResponseTo that it matches
+    // the 'InResponseTo' attribute set in the Response
+    if (this.options.validateInResponseTo) {
+      if (subjectConfirmation) {
+        if (confirmData && confirmData.$) {
+          const subjectInResponseTo = confirmData.$.InResponseTo;
+          if (inResponseTo && subjectInResponseTo && subjectInResponseTo !== inResponseTo) {
+            await this.cacheProvider.remove(inResponseTo);
+            throw new Error('InResponseTo is not valid');
+          } else if (subjectInResponseTo) {
+            let foundValidInResponseTo = false;
 
-            if (nameID[0].$ && nameID[0].$.Format) {
-              profile.nameIDFormat = nameID[0].$.Format;
-              profile.nameQualifier = nameID[0].$.NameQualifier;
-              profile.spNameQualifier = nameID[0].$.SPNameQualifier;
-            }
-          }
-
-          subjectConfirmation = subject[0].SubjectConfirmation ?
-            subject[0].SubjectConfirmation[0] : null;
-          confirmData = subjectConfirmation && subjectConfirmation.SubjectConfirmationData ?
-            subjectConfirmation.SubjectConfirmationData[0] : null;
-          if (subject[0].SubjectConfirmation && subject[0].SubjectConfirmation.length > 1) {
-            msg = 'Unable to process multiple SubjectConfirmations in SAML assertion';
-            throw new Error(msg);
-          }
-
-          if (subjectConfirmation) {
-            if (confirmData && confirmData.$) {
-              const subjectNotBefore = confirmData.$.NotBefore;
-              const subjectNotOnOrAfter = confirmData.$.NotOnOrAfter;
-
-              const subjErr = this._checkTimestampsValidityError(
-                nowMs, subjectNotBefore, subjectNotOnOrAfter);
-              if (subjErr) {
-                throw subjErr;
-              }
-            }
+            await this.cacheProvider.get(subjectInResponseTo)
+              .then(result => {
+                if (result) {
+                  const createdAt = new Date(result);
+                  if (nowMs < createdAt.getTime() + this.options.requestIdExpirationPeriodMs)
+                    {foundValidInResponseTo = true;}
+                }
+                return this.cacheProvider.remove(inResponseTo);
+              })
+              .then(() => {
+                if (!foundValidInResponseTo) {
+                  throw new Error('InResponseTo is not valid');
+                }
+                return Promise.resolve();
+              });
           }
         }
+      } else {
+        await this.cacheProvider.remove(inResponseTo);
+      }
+    }
 
-        // Test to see that if we have a SubjectConfirmation InResponseTo that it matches
-        // the 'InResponseTo' attribute set in the Response
-        if (this.options.validateInResponseTo) {
-          const removeFn = promisify(this.cacheProvider.remove).bind(this.cacheProvider);
-          const getFn = promisify(this.cacheProvider.get).bind(this.cacheProvider);
-          if (subjectConfirmation) {
-            if (confirmData && confirmData.$) {
-              const subjectInResponseTo = confirmData.$.InResponseTo;
-              if (inResponseTo && subjectInResponseTo && subjectInResponseTo != inResponseTo) {
-                return removeFn(inResponseTo)
-                  .then(() => {
-                    throw new Error('InResponseTo is not valid');
-                  });
-              } else if (subjectInResponseTo) {
-                let foundValidInResponseTo = false;
+    const conditions = assertion.Conditions ? assertion.Conditions[0] : null;
+    if (assertion.Conditions && assertion.Conditions.length > 1) {
+      msg = 'Unable to process multiple conditions in SAML assertion';
+      throw new Error(msg);
+    }
+    if (conditions && conditions.$) {
+      const conErr = this._checkTimestampsValidityError(nowMs, conditions.$.NotBefore, conditions.$.NotOnOrAfter);
+      if (conErr) {throw conErr;}
+    }
 
-                return getFn(subjectInResponseTo)
-                  .then(result => {
-                    if (result) {
-                      const createdAt = new Date(result);
-                      if (nowMs < createdAt.getTime() + this.options.requestIdExpirationPeriodMs)
-                        {foundValidInResponseTo = true;}
-                    }
-                    return removeFn(inResponseTo);
-                  })
-                  .then(() => {
-                    if (!foundValidInResponseTo) {
-                      throw new Error('InResponseTo is not valid');
-                    }
-                    return Promise.resolve();
-                  });
-              }
-            }
+    if (this.options.audience) {
+      const audienceErr = this._checkAudienceValidityError(this.options.audience, conditions.AudienceRestriction);
+      if (audienceErr) {throw audienceErr;}
+    }
+
+    const attributeStatement = assertion.AttributeStatement;
+    if (attributeStatement) {
+      const attributes = [].concat(...attributeStatement.filter(({ Attribute }) => Array.isArray(Attribute))
+        .map(({ Attribute }) => Attribute));
+
+      const attrValueMapper = value => typeof value === 'string' ? value : value._;
+
+      if (attributes) {
+        attributes.forEach(attribute => {
+          if (!Object.prototype.hasOwnProperty.call(attribute, 'AttributeValue')) {
+            // if attributes has no AttributeValue child, continue
+            return;
+          }
+          const value = attribute.AttributeValue;
+          if (value.length === 1) {
+            profile[attribute.$.Name] = attrValueMapper(value[0]);
           } else {
-            return removeFn(inResponseTo);
+            profile[attribute.$.Name] = value.map(attrValueMapper);
           }
-        } else {
-          return Promise.resolve();
-        }
-      })
-      .then(() => {
-        const conditions = assertion.Conditions ? assertion.Conditions[0] : null;
-        if (assertion.Conditions && assertion.Conditions.length > 1) {
-          msg = 'Unable to process multiple conditions in SAML assertion';
-          throw new Error(msg);
-        }
-        if (conditions && conditions.$) {
-          const conErr = this._checkTimestampsValidityError(nowMs, conditions.$.NotBefore, conditions.$.NotOnOrAfter);
-          if (conErr) {throw conErr;}
-        }
+        });
+      }
+    }
 
-        if (this.options.audience) {
-          const audienceErr = this._checkAudienceValidityError(this.options.audience, conditions.AudienceRestriction);
-          if (audienceErr) {throw audienceErr;}
-        }
+    if (!profile.mail && profile['urn:oid:0.9.2342.19200300.100.1.3']) {
+      // See https://spaces.internet2.edu/display/InCFederation/Supported+Attribute+Summary
+      // for definition of attribute OIDs
+      profile.mail = profile['urn:oid:0.9.2342.19200300.100.1.3'];
+    }
 
-        const attributeStatement = assertion.AttributeStatement;
-        if (attributeStatement) {
-          const attributes = [].concat(...attributeStatement.filter(({ Attribute }) => Array.isArray(Attribute))
-            .map(({ Attribute }) => Attribute));
+    if (!profile.email && profile.mail) {
+      profile.email = profile.mail;
+    }
 
-          const attrValueMapper = value => typeof value === 'string' ? value : value._;
+    profile.getAssertionXml = () => xml;
+    profile.getAssertion = () => parsedAssertion;
+    profile.getSamlResponseXml = () => samlResponseXml;
 
-          if (attributes) {
-            attributes.forEach(attribute => {
-              if (!Object.prototype.hasOwnProperty.call(attribute, 'AttributeValue')) {
-                // if attributes has no AttributeValue child, continue
-                return;
-              }
-              const value = attribute.AttributeValue;
-              if (value.length === 1) {
-                profile[attribute.$.Name] = attrValueMapper(value[0]);
-              } else {
-                profile[attribute.$.Name] = value.map(attrValueMapper);
-              }
-            });
-          }
-        }
-
-        if (!profile.mail && profile['urn:oid:0.9.2342.19200300.100.1.3']) {
-          // See https://spaces.internet2.edu/display/InCFederation/Supported+Attribute+Summary
-          // for definition of attribute OIDs
-          profile.mail = profile['urn:oid:0.9.2342.19200300.100.1.3'];
-        }
-
-        if (!profile.email && profile.mail) {
-          profile.email = profile.mail;
-        }
-
-        profile.getAssertionXml = () => xml;
-        profile.getAssertion = () => parsedAssertion;
-        profile.getSamlResponseXml = () => samlResponseXml;
-
-        callback(null, profile, false);
-      })
-      .catch(err => callback(err));
+    return {profile, success: false};
   }
 
   _checkTimestampsValidityError(nowMs, notBefore, notOnOrAfter) {
@@ -1110,14 +1054,14 @@ class SAML {
   }
 }
 
-function processValidlySignedSamlLogout(self, xmlParser, callback) {
+function processValidlySignedSamlLogout(self, xmlParser) {
   const request = xmlParser.query('/saml2p:LogoutRequest')[0];
   const response = xmlParser.query('/saml2p:LogoutResponse')[0];
 
   if (response) {
-    return callback(null, null, true);
+    return {profile: null, success: true};
   } else if (request) {
-    return processValidlySignedPostRequest(self, xmlParser, callback);
+    return processValidlySignedPostRequest(self, xmlParser);
   } else {
     throw new Error('Unknown SAML response message');
   }
@@ -1131,7 +1075,7 @@ function returnNameID(nameid) {
   };
 }
 
-function processValidlySignedPostRequest(self, xmlParser, callback) {
+async function processValidlySignedPostRequest(self, xmlParser) {
   const request = xmlParser.query('/saml2p:LogoutRequest')[0];
   if (request) {
     const profile = {};
@@ -1140,13 +1084,13 @@ function processValidlySignedPostRequest(self, xmlParser, callback) {
     if (ID) {
       profile.ID = ID;
     } else {
-      return callback(new Error('Missing SAML LogoutRequest ID'));
+      throw new Error('Missing SAML LogoutRequest ID');
     }
     const issuer = xmlParser.query('/saml2p:LogoutRequest/claim:Issuer')[0].firstChild.data;
     if (issuer) {
       profile.issuer = issuer;
     } else {
-      return callback(new Error('Missing SAML issuer'));
+      throw new Error('Missing SAML issuer');
     }
 
     return self._getNameID(self, xmlParser)
@@ -1165,11 +1109,10 @@ function processValidlySignedPostRequest(self, xmlParser, callback) {
         const sessionIndex = sessionIndexes[0].firstChild.data;
         profile.sessionIndex = sessionIndex;
       }
-      return callback(null, profile, true);
-    })
-    .catch(callback);
+      return {profile, success: true};
+    });
   } else {
-    return callback(new Error('Unknown SAML request message'));
+    throw new Error('Unknown SAML request message');
   }
 }
 

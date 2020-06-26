@@ -3,6 +3,10 @@ Node SAML
 
 This is a [SAML 2.0](http://en.wikipedia.org/wiki/SAML_2.0) library based on the SAML implementation of [passport-saml](https://github.com/bergie/passport-saml).
 
+v1 is a backward compatible drop-in replacement for the saml.js library from passport-saml.
+
+v2 modernizes (async instead of callbacks) and restructures the library to be independend of some of the assumptions made for passport.js (e.g. callback format, express.js request objects)
+
 ## Installation
 
     $ npm install node-saml
@@ -15,15 +19,41 @@ This is a [SAML 2.0](http://en.wikipedia.org/wiki/SAML_2.0) library based on the
     const options = {};
     const saml = new SAML(options);
 
-    // saml.getLogoutResponseUrl(req, {additionalParams}, callback);
-    // saml.validateRedirect(query, originalQuery, callback);
-    // saml.validatePostResponse(body, callback);
-    // saml.validatePostRequest(body, callback);
-    // saml.getAuthorizeForm(req, callback);
-    // saml.getAuthorizeUrl(req, options, callback);
-    // saml.getLogoutUrl(req, options, callback);
+    // await saml.getLogoutResponseUrl({user, samlLogoutRequest}, {additionalParams});
+    // const {success} = await saml.validateRedirect(query, originalQuery);
+    // await saml.validatePostResponse(body);
+    // await saml.validatePostRequest(body);
+    // await saml.getAuthorizeForm();
+    // await saml.getAuthorizeUrl(options);
+    // await saml.getLogoutUrl(user, options);
     // saml.generateServiceProviderMetadata(decryptionCert, signingCert);
   ```
+
+## Upgrade from v1
+### Breaking Changes
+- All functions that previously required a callback do not return a Promise, e.g.
+
+```javascript
+  // old
+  saml.validatePostResponse(body, (err, result) => {});
+
+  // new
+  const result = await saml.validatePostResponse(body);
+```
+
+- Instread of passing in a full express.js request object, functions now only require an object with the parameters that are actually relevant to that function
+
+e.g.
+```javascript
+  // old
+  saml.getLogoutResponseUrl(req, {additionalParams}, callback)
+
+  // new
+  await saml.getLogoutResponseUrl({user, samlLogoutRequest}, {additionalParams});
+```
+
+- Errors thrown are now proper javascript Errors. It was a mix of js Errors and strings before.
+
 
 #### Config parameter details:
 

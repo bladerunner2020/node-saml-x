@@ -52,21 +52,15 @@ class CacheProvider {
   * @param id
   * @param value
   */
-  save(key, value, callback) {
-    if(!this.cacheKeys[key])
-    {
+  async save(key, value) {
+    if(!this.cacheKeys[key]) {
       this.cacheKeys[key] = {
         createdAt: new Date().getTime(),
         value
       };
-
-      callback(null, this.cacheKeys[key]);
+      return this.cacheKeys[key];
     }
-    else
-    {
-      callback(null, null);
-    }
-
+    return null;
   }
 
   /**
@@ -74,32 +68,23 @@ class CacheProvider {
   * @param id
   * @returns {boolean}
   */
-  get(key, callback) {
+  async get(key) {
     if(this.cacheKeys[key]){
-      callback(null, this.cacheKeys[key].value);
+      return this.cacheKeys[key].value;
     }
-    else
-    {
-      callback(null, null);
-    }
-
+    return null;
   }
 
   /**
   * Removes an item from the cache if it exists
   * @param key
   */
-  remove(key, callback) {
-    if(this.cacheKeys[key])
-    {
+  async remove(key) {
+    if(this.cacheKeys[key]) {
       delete this.cacheKeys[key];
-      callback(null, key);
+      return key;
     }
-    else
-    {
-      callback(null, null);
-    }
-
+    return null;
   }
 }
 
