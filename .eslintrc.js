@@ -10,7 +10,7 @@ module.exports = {
   },
   rules: {
     'no-undefined': 'off',
-    'no-unused-vars': 'off',
+    'no-unused-vars': 'error',
     'no-throw-literal': 'error',
     quotes: ['warn', 'single'],
     curly: 'error',
