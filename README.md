@@ -225,23 +225,16 @@ To support this scenario you can provide an implementation for a cache provider 
 
 ```javascript
 {
-  save: function(key, value, callback) {
-    // save the key with the optional value, invokes the callback with the value saves
+  async function save(key, value) {
+    // save the key with the optional value, returns a Promise that resolves to the the value
   },
-  get: function(key, callback) {
-    // invokes 'callback' and passes the value if found, null otherwise
+  async function get(key) {
+    // returns a Promise that resolves to the value if found, null otherwise
   },
-  remove: function(key, callback) {
-    // removes the key from the cache, invokes `callback` with the
+  async function remove(key) {
+    // removes the key from the cache, returns a Promise that resolves to the
     // key removed, null if no key is removed
   }
-}
-```
-
-The `callback` argument is a function in the style of normal Node callbacks:
-```
-function callback(err, result) {
-
 }
 ```
 
