@@ -1,6 +1,5 @@
 'use strict';
 var fs = require('fs');
-var url = require('url');
 var should = require('should');
 
 var SAML = require('../src/saml.js').SAML;
