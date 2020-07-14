@@ -41,7 +41,7 @@ class SAML {
       cacheProvider: options.cacheProvider || new InMemoryCacheProvider({ keyExpirationPeriodMs: requestIdExpirationPeriodMs }),
       entryPoint: options.entryPoint,
       logoutUrl: options.logoutUrl || options.entryPoint || '', // Default to Entry Point
-      signatureAlgorithm: options.signatureAlgorithm || 'sha1', // sha1, sha256, or sha512
+      signatureAlgorithm: options.signatureAlgorithm || 'sha256', // sha1 (deprecated), sha256 (default), or sha512
       /**
       * List of possible values for RACComparison:
       * - exact : Assertion context must exactly match a context in the list

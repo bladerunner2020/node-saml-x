@@ -31,7 +31,7 @@ v2 modernizes (async instead of callbacks) and restructures the library to be in
 
 ## Upgrade from v1
 ### Breaking Changes
-- All functions that previously required a callback do not return a Promise, e.g.
+- All functions that previously required a callback do now return a Promise, e.g.
 
 ```javascript
   // old
@@ -41,7 +41,7 @@ v2 modernizes (async instead of callbacks) and restructures the library to be in
   const result = await saml.validatePostResponse(body);
 ```
 
-- Instread of passing in a full express.js request object, functions now only require an object with the parameters that are actually relevant to that function
+- Instead of passing in a full express.js request object, functions now only require an object with the parameters that are actually relevant to that function
 
 e.g.
 ```javascript
@@ -52,7 +52,7 @@ e.g.
   await saml.getLogoutResponseUrl({user, samlLogoutRequest}, {additionalParams});
 ```
 
-- Errors thrown are now proper javascript Errors. It was a mix of js Errors and strings before.
+- Errors thrown are now proper Javascript Errors. It was a mix of js Errors and strings before.
 
 
 #### Config parameter details:
@@ -68,8 +68,8 @@ e.g.
   * `cert`: the IDP's public signing certificate used to validate the signatures of the incoming SAML Responses, see [Security and signatures](#security-and-signatures)
   * `privateCert`: see [Security and signatures](#security-and-signatures)
   * `decryptionPvk`: optional private key that will be used to attempt to decrypt any encrypted assertions that are received
-  * `signatureAlgorithm`: optionally set the signature algorithm for signing requests, valid values are 'sha1' (default), 'sha256', or 'sha512'
-  * `digestAlgorithm`: optionally set the digest algorithm used to provide a digest for the signed data object, valid values are 'sha1' (default), 'sha256', or 'sha512'
+  * `signatureAlgorithm`: optionally set the signature algorithm for signing requests, valid values are 'sha1', 'sha256' (default), or 'sha512'
+  * `digestAlgorithm`: optionally set the digest algorithm used to provide a digest for the signed data object, valid values are 'sha1', 'sha256' (default), or 'sha512'
   * `xmlSignatureTransforms`: optionally set an array of signature transforms to be used in HTTP-POST signatures. By default this is `[ 'http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/2001/10/xml-exc-c14n#' ]`
  * **Additional SAML behaviors**
   * `additionalParams`: dictionary of additional query params to add to all requests; if an object with this key is passed to `authenticate`, the dictionary of additional query params will be appended to those present on the returned URL, overriding any specified by initialization options' additional parameters (`additionalParams`, `additionalAuthorizeParams`, and `additionalLogoutParams`)
@@ -115,8 +115,8 @@ To select hashing algorithm, use:
 
 ```js
 ...
-  signatureAlgorithm: 'sha1' // (default, but not recommended anymore these days)
-  signatureAlgorithm: 'sha256', // (preffered - your IDP should support it, otherwise think about upgrading it)
+  signatureAlgorithm: 'sha1' // (deprecated)
+  signatureAlgorithm: 'sha256', // (default - your IDP should support it, otherwise think about upgrading it)
   signatureAlgorithm: 'sha512' // (most secure - check if your IDP supports it)
 ...
 ```
