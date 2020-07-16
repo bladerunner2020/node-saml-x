@@ -74,15 +74,15 @@ class SAML {
     this.cacheProvider = this.options.cacheProvider;
   }
 
-  async getAuthorizeUrl(options) {
+  async getAuthorizeUrl({additionalParams = {}, RelayState} = {}) {
     const request = await this._generateAuthorizeRequest({isPassive: this.options.passive, isHttpPostBinding: false});
 
     const operation = 'authorize';
-    const overrideParams = options ? options.additionalParams || {} : {};
-    return this._requestToUrl(request, null, operation, this._getAdditionalParams(null, operation, overrideParams));
+    const overrideParams =additionalParams;
+    return this._requestToUrl(request, null, operation, this._getAdditionalParams(RelayState, operation, overrideParams));
   }
 
-  async getAuthorizeForm() {
+  async getAuthorizeForm({RelayState} = {}) {
     // The quoteattr() function is used in a context, where the result will not be evaluated by javascript
     // but must be interpreted by an XML or HTML parser, and it must absolutely avoid breaking the syntax
     // of an element attribute.
@@ -110,7 +110,7 @@ class SAML {
     }
 
     const operation = 'authorize';
-    const additionalParameters = this._getAdditionalParams(null, operation);
+    const additionalParameters = this._getAdditionalParams(RelayState, operation);
     const samlMessage = {
       SAMLRequest: buffer.toString('base64')
     };
@@ -142,19 +142,19 @@ class SAML {
     ].join('\r\n');
   }
 
-  async getLogoutUrl(user, options) {
+  async getLogoutUrl(user, {additionalParams = {}, RelayState} = {}) {
     const request = await this._generateLogoutRequest(user);
 
     const operation = 'logout';
-    const overrideParams = options ? options.additionalParams || {} : {};
-    return this._requestToUrl(request, null, operation, this._getAdditionalParams(null, operation, overrideParams));
+    const overrideParams = additionalParams;
+    return this._requestToUrl(request, null, operation, this._getAdditionalParams(RelayState, operation, overrideParams));
   }
 
-  async getLogoutResponseUrl({user, samlLogoutRequest} = {}, {additionalParams = {}} = {}) {
+  async getLogoutResponseUrl({user, samlLogoutRequest} = {}, {additionalParams = {}, RelayState} = {}) {
     const response = this._generateLogoutResponse(user, samlLogoutRequest);
     const operation = 'logout';
     const overrideParams = additionalParams;
-    return this._requestToUrl(null, response, operation, this._getAdditionalParams(null, operation, overrideParams));
+    return this._requestToUrl(null, response, operation, this._getAdditionalParams(RelayState, operation, overrideParams));
   }
 
   async validatePostResponse({ SAMLResponse }) {

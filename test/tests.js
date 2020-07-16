@@ -528,6 +528,40 @@ describe( 'node-saml /', function() {
       });
     });
 
+    describe( 'getAuthorizeUrl request RelayState checks /', function() {
+      var fakeClock;
+      beforeEach(function(){
+        fakeClock = sinon.useFakeTimers(Date.parse('2014-05-28T00:13:09Z'));
+      });
+      afterEach(function(){
+        fakeClock.restore();
+      });
+
+      it ( 'should not pass RelayState by default', async function() {
+        var samlConfig = {
+          entryPoint: 'https://app.onelogin.com/trust/saml2/http-post/sso/371755',
+        };
+        var samlObj = new SAML( samlConfig );
+        samlObj._generateUniqueID = function () { return '12345678901234567890'; };
+        const url = await samlObj.getAuthorizeUrl({}, {});
+
+        var searchParams = new URL(url).searchParams;
+        should.not.exist(searchParams.get('RelayState'));
+      });
+
+      it ( 'should pass through RelayState', async function() {
+        var samlConfig = {
+          entryPoint: 'https://app.onelogin.com/trust/saml2/http-post/sso/371755',
+        };
+        var samlObj = new SAML( samlConfig );
+        samlObj._generateUniqueID = function () { return '12345678901234567890'; };
+        const url = await samlObj.getAuthorizeUrl({RelayState: 'test'}, {});
+
+        var searchParams = new URL(url).searchParams;
+        searchParams.get('RelayState').should.match('test');
+      });
+    });
+
     describe( 'getAuthorizeUrl request signature checks /', function() {
       var fakeClock;
       beforeEach(function(){
