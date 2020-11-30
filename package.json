@@ -24,19 +24,19 @@
   },
   "main": "./src/index.js",
   "dependencies": {
-    "debug": "^3.2.6",
-    "xml-crypto": "^1.4.0",
-    "xml-encryption": "^1.0.0",
+    "debug": "^3.2.7",
+    "xml-crypto": "^2.0.0",
+    "xml-encryption": "^1.2.1",
     "xml2js": "^0.4.23",
     "xmlbuilder": "^15.1.1",
-    "xmldom": "^0.3.0"
+    "xmldom": "^0.4.0"
   },
   "devDependencies": {
-    "eslint": "^7.4.0",
+    "eslint": "^7.14.0",
     "eslint-plugin-mocha": "^7.0.1",
-    "mocha": "^8.0.1",
+    "mocha": "^8.2.1",
     "should": "*",
-    "sinon": "^9.0.2"
+    "sinon": "^9.2.1"
   },
   "engines": {
     "node": ">= 10"
