@@ -348,12 +348,13 @@ describe( 'node-saml /', function() {
         };
         var samlObj = new SAML();
 
-        const {profile} = await samlObj.validatePostResponse(container);
+        const {profile, success} = await samlObj.validatePostResponse(container);
         profile.issuer.should.eql('https://evil-corp.com');
         profile.nameID.should.eql('vincent.vega@evil-corp.com');
         should(profile).have.property('evil-corp.egroupid').eql('vincent.vega@evil-corp.com');
         // attributes without attributeValue child should be ignored
         should(profile).not.have.property('evilcorp.roles');
+        should(success).equal(true);
 
         fakeClock.restore();
       });
