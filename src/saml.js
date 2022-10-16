@@ -1,4 +1,5 @@
 const debug = require('debug')('node-saml');
+const debugVerbose = require('debug')('node-saml:verbose');
 const zlib = require('zlib');
 const xml2js = require('xml2js');
 const xmlCrypto = require('xml-crypto');
@@ -74,8 +75,8 @@ class SAML {
     this.cacheProvider = this.options.cacheProvider;
   }
 
-  async getAuthorizeUrl({additionalParams = {}, RelayState} = {}) {
-    const request = await this._generateAuthorizeRequest({isPassive: this.options.passive, isHttpPostBinding: false});
+  async getAuthorizeUrl({additionalParams = {}, RelayState, uniqueId} = {} ) {
+    const request = await this._generateAuthorizeRequest({isPassive: this.options.passive, isHttpPostBinding: false, uniqueId});
 
     const operation = 'authorize';
     const overrideParams =additionalParams;
@@ -158,9 +159,12 @@ class SAML {
   }
 
   async validatePostResponse({ SAMLResponse }) {
+    debug('validatePostResponse');
     let inResponseTo;
     try {
       const xml = Buffer.from(SAMLResponse, 'base64').toString('utf8');
+
+      debugVerbose(xml);
 
       const certs = (await this._certsToCheck()).map(cert => this._certToPEM(cert));
 
@@ -173,10 +177,12 @@ class SAML {
       }
       inResponseTo = xmlParser.query('/saml2p:Response')[0].getAttribute('InResponseTo');
 
+      debug(`validateInResponseTo: ${inResponseTo}`);
       await this._validateInResponseTo(inResponseTo);
 
       // Check if this document has a valid top-level signature
       const validSignature = xmlParser.signatureVerified;
+      debug(`validSignature: ${validSignature}`);
 
       const assertionsQuery = '/saml2p:Response/claim:Assertion';
       const assertions = xmlParser.query(assertionsQuery);
@@ -455,8 +461,8 @@ class SAML {
     samlMessage.Signature = signer.sign(this._keyToPEM(this.options.privateCert), 'base64');
   }
 
-  async _generateAuthorizeRequest({isPassive, isHttpPostBinding} = {}) {
-    const id = `_${this._generateUniqueID()}`;
+  async _generateAuthorizeRequest({isPassive, isHttpPostBinding, uniqueId} = {}) {
+    const id = uniqueId || `_${this._generateUniqueID()}`;
     const instant = this._generateInstant();
     const forceAuthn = this.options.forceAuthn || false;
 
@@ -808,6 +814,7 @@ class SAML {
   }
 
   async _processValidlySignedAssertion(xml, samlResponseXml, inResponseTo) {
+    debug('processValidlySignedAssertion');
     let msg;
     const parserConfig = {
       explicitRoot: true,
@@ -964,7 +971,10 @@ class SAML {
     profile.getAssertion = () => parsedAssertion;
     profile.getSamlResponseXml = () => samlResponseXml;
 
-    return {profile, success: false};
+    debug('processValidlySignedAssertion: success');
+    debugVerbose(profile);
+
+    return {profile, success: true}; // CHANGED: false => true
   }
 
   _checkTimestampsValidityError(nowMs, notBefore, notOnOrAfter) {
@@ -1015,12 +1025,12 @@ class SAML {
       if (!options.decryptionPvk) {
         throw new Error('No decryption key for encrypted SAML response');
       }
-      const encryptedDatas = xmlParser.query('/saml2p:LogoutRequest/claim:EncryptedID/enc:EncryptedData');
+      const encryptedData = xmlParser.query('/saml2p:LogoutRequest/claim:EncryptedID/enc:EncryptedData');
 
-      if (encryptedDatas.length !== 1) {
+      if (encryptedData.length !== 1) {
         throw new Error('Invalid LogoutRequest');
       }
-      const encryptedDataXml = encryptedDatas[0].toString();
+      const encryptedDataXml = encryptedData[0].toString();
 
       const xmlencOptions = { key: options.decryptionPvk };
       const decryptFn = promisify(xmlenc.decrypt).bind(xmlenc);
