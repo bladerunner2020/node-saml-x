@@ -417,6 +417,10 @@ class SAML {
     return xmlbuilder.create(metadata).end({ pretty: true, indent: '  ', newline: '\n' });
   }
 
+  generateUniqueID() {
+    return crypto.randomBytes(10).toString('hex');
+  }
+
   // private methods
 
   _getCallbackUrl() {
@@ -430,10 +434,6 @@ class SAML {
       url.pathname = this.options.path;
       return url.toString();
     }
-  }
-
-  _generateUniqueID() {
-    return crypto.randomBytes(10).toString('hex');
   }
 
   _generateInstant() {
@@ -462,7 +462,7 @@ class SAML {
   }
 
   async _generateAuthorizeRequest({isPassive, isHttpPostBinding, uniqueId} = {}) {
-    const id = uniqueId || `_${this._generateUniqueID()}`;
+    const id = `_${uniqueId || this.generateUniqueID()}`;
     const instant = this._generateInstant();
     const forceAuthn = this.options.forceAuthn || false;
 
@@ -538,7 +538,7 @@ class SAML {
   }
 
   async _generateLogoutRequest(user) {
-    const id = `_${this._generateUniqueID()}`;
+    const id = `_${this.generateUniqueID()}`;
     const instant = this._generateInstant();
 
     const request = {
@@ -580,7 +580,7 @@ class SAML {
   }
 
   _generateLogoutResponse(req, { ID }) {
-    const id = `_${this._generateUniqueID()}`;
+    const id = `_${this.generateUniqueID()}`;
     const instant = this._generateInstant();
 
     const request = {
