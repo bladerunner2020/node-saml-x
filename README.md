@@ -1,6 +1,9 @@
 Node SAML
 =============
 
+**FORKED FROM node-saml**
+
+
 This is a [SAML 2.0](http://en.wikipedia.org/wiki/SAML_2.0) library based on the SAML implementation of [passport-saml](https://github.com/bergie/passport-saml).
 
 v1 is a backward compatible drop-in replacement for the saml.js library from passport-saml.
