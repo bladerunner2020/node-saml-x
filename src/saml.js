@@ -77,7 +77,9 @@ class SAML {
 
   async getAuthorizeUrl({additionalParams = {}, RelayState, uniqueId} = {} ) {
     const request = await this._generateAuthorizeRequest({isPassive: this.options.passive, isHttpPostBinding: false, uniqueId});
-
+    if (debugVerbose.enabled) {
+      debugVerbose(`Generated SAML auth request: ${request}`);
+    }
     const operation = 'authorize';
     const overrideParams =additionalParams;
     return this._requestToUrl(request, null, operation, this._getAdditionalParams(RelayState, operation, overrideParams));
