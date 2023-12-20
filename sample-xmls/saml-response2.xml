@@ -1,0 +1,47 @@
+<samlp:Response ID=\"_204a292c-a336-4b83-a07c-43b204d98007\" Version=\"2.0\" IssueInstant=\"2022-10-19T08:13:48.461Z\" Destination=\"https://booking.ibs.ru/services/saml2/\" Consent=\"urn:oasis:names:tc:SAML:2.0:consent:unspecified\" InResponseTo=\"_kgGaLuTJTqbc4DNwu\"
+  xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\">
+  <Issuer xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://adfs.ibs.ru/adfs/services/trust</Issuer>
+  <samlp:Status>
+    <samlp:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Success\" />
+  </samlp:Status>
+  <Assertion ID=\"_f90cf623-6718-46a3-819b-5e5c98b24056\" IssueInstant=\"2022-10-19T08:13:48.461Z\" Version=\"2.0\"
+    xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">
+    <Issuer>http://adfs.ibs.ru/adfs/services/trust</Issuer>
+    <ds:Signature xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\">
+      <ds:SignedInfo>
+        <ds:CanonicalizationMethod Algorithm=\"http://www.w3.org/2001/10/xml-exc-c14n#\" />
+        <ds:SignatureMethod Algorithm=\"http://www.w3.org/2001/04/xmldsig-more#rsa-sha256\" />
+        <ds:Reference URI=\"#_f90cf623-6718-46a3-819b-5e5c98b24056\">
+          <ds:Transforms>
+            <ds:Transform Algorithm=\"http://www.w3.org/2000/09/xmldsig#enveloped-signature\" />
+            <ds:Transform Algorithm=\"http://www.w3.org/2001/10/xml-exc-c14n#\" />
+          </ds:Transforms>
+          <ds:DigestMethod Algorithm=\"http://www.w3.org/2001/04/xmlenc#sha256\" />
+          <ds:DigestValue>HkpBUxnJy7vSK0rTmvNyGyte9ejAOaXrdIOB+ZIorL0=</ds:DigestValue>
+        </ds:Reference>
+      </ds:SignedInfo>
+      <ds:SignatureValue>e1nuZG+ia452e040aZmz8g4K7UVKTSr6+yKzCNz8lM1JsJAnQ8CF4a8ggSUdjk9TOtbt6Ii/vy6bsYreHVBI8x8plFsfoESTsC5v9Kp8GMWFVZGArAlPag9Xj9SzT+Q1gw1Jh0/pTbjQzDMG7jzBOh551N1gGoZY+dc5f7653LXdRRmmVtXSiVyuoq50C2bw0YLE47bjwFCxvS95sdbbCv6IoiF+Hanf5LwEzLDjcWxzkHJ2+4s0IVa6nd+ZZFJIZ2zpEg7C57Xzu/As8IfIEYQgchub+4IQO6nm4y1TYl1uW3pKX5W1HLMZzdB6FiuWrLOP8pvMhr2IDmgcTxdbJw==</ds:SignatureValue>
+      <KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\">
+        <ds:X509Data>
+          <ds:X509Certificate>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</ds:X509Certificate>
+        </ds:X509Data>
+      </KeyInfo>
+    </ds:Signature>
+    <Subject>
+      <NameID>DINikolaev@IBS.RU</NameID>
+      <SubjectConfirmation Method=\"urn:oasis:names:tc:SAML:2.0:cm:bearer\">
+        <SubjectConfirmationData InResponseTo=\"_kgGaLuTJTqbc4DNwu\" NotOnOrAfter=\"2022-10-19T08:18:48.461Z\" Recipient=\"https://booking.ibs.ru/services/saml2/\" />
+      </SubjectConfirmation>
+    </Subject>
+    <Conditions NotBefore=\"2022-10-19T08:13:48.461Z\" NotOnOrAfter=\"2022-10-19T09:13:48.461Z\">
+      <AudienceRestriction>
+        <Audience>BOOCO</Audience>
+      </AudienceRestriction>
+    </Conditions>
+    <AuthnStatement AuthnInstant=\"2022-10-19T08:13:48.430Z\" SessionIndex=\"_f90cf623-6718-46a3-819b-5e5c98b24056\">
+      <AuthnContext>
+        <AuthnContextClassRef>urn:federation:authentication:windows</AuthnContextClassRef>
+      </AuthnContext>
+    </AuthnStatement>
+  </Assertion>
+</samlp:Response>

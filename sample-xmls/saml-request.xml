@@ -1,0 +1,8 @@
+<?xml version=\"1.0\"?>
+<samlp:AuthnRequest xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" ID=\"_iJ4fWTCp7MWujSaiq\" Version=\"2.0\" IssueInstant=\"2022-10-18T07:19:32.288Z\" ProtocolBinding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Destination=\"https://adfs.ibs.ru/adfs/ls/idpinitiatedsignon.aspx\" AssertionConsumerServiceURL=\"https://booking.ibs.ru/services/saml2/\">
+  <saml:Issuer xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">onelogin_saml</saml:Issuer>
+  <samlp:NameIDPolicy xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\" AllowCreate=\"true\"/>
+  <samlp:RequestedAuthnContext xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" Comparison=\"exact\">
+    <saml:AuthnContextClassRef xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://schemas.microsoft.com/ws/2008/06/identity/authenticationmethod/windows</saml:AuthnContextClassRef>
+  </samlp:RequestedAuthnContext>
+</samlp:AuthnRequest>
